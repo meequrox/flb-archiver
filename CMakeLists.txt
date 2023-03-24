@@ -4,6 +4,9 @@ project(flb-archiver LANGUAGES C)
 
 add_executable(flb-archiver src/main.c)
 
+find_package(LibXml2 REQUIRED)
+target_link_libraries(flb-archiver PUBLIC LibXml2::LibXml2)
+
 find_package(CURL REQUIRED)
 target_link_libraries(flb-archiver PUBLIC CURL::libcurl)
 
