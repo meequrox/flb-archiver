@@ -88,6 +88,8 @@ int main() {
         printf("%s\n", links[i]);
     }
 
+    xmlSaveFormatFileEnc("output.html", doc, "UTF-8", 1);
+
     free(memory.data);
     for (int i = 0; i < MAX_LINKS; i++) free(links[i]);
     free(links);
