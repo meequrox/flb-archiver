@@ -6,6 +6,7 @@
 
 #define FF_USERAGENT "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:99.0) Gecko/20100101 Firefox/99.0"
 #define BASEURL "https://flareboard.ru/"
+#define MAX_LINKS 30
 
 struct MemoryStruct {
     char* data;
@@ -55,24 +56,42 @@ int main() {
         return 0;
     }
 
+    char** links = malloc(MAX_LINKS * sizeof(char*));
+    for (int i = 0; i < MAX_LINKS; i++) links[i] = NULL;
+
     xmlDocPtr doc = htmlReadDoc((xmlChar*)memory.data, NULL, NULL,
                                 HTML_PARSE_NOBLANKS | HTML_PARSE_NOERROR | HTML_PARSE_NOWARNING);
     xmlNodePtr cur = xmlDocGetRootElement(doc)->children->children;  // <html> <-- <head> <-- <node>
+    int j = 0;
     while (cur) {
         if (xmlStrcmp(cur->name, (xmlChar*)"link") == 0) {
             xmlChar* attr = xmlGetProp(cur, (xmlChar*)"href");
 
             if (attr) {
-                printf("%s%s\n", BASEURL, attr);
+                size_t base_len = strlen(BASEURL);
+                size_t attr_len = strlen((char*)attr);
+
+                links[j] = malloc((base_len + attr_len + 1) * sizeof(char));
+                strcpy(links[j], BASEURL);
+                strcat(links[j], (char*)attr);
+                links[j][base_len + attr_len] = '\0';
+
                 xmlFree(attr);
+                j++;
             }
         }
 
         cur = cur->next;
     }
 
-    xmlFreeDoc(doc);
+    for (int i = 0; links[i]; i++) {
+        printf("%s\n", links[i]);
+    }
+
     free(memory.data);
+    for (int i = 0; i < MAX_LINKS; i++) free(links[i]);
+    free(links);
+    xmlFreeDoc(doc);
     curl_global_cleanup();
     return 0;
 }
