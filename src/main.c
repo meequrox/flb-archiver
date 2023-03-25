@@ -133,6 +133,8 @@ int main(int argc, char** argv) {
         // Sleep 300ms
         usleep(300.0 * 1000);
     }
+
+    fprintf(stdout, "\nAll pages saved! Start downloading extra links (img, video)");
     download_links(links, 0);
 
     linkpool_free(links);
