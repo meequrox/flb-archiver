@@ -201,11 +201,17 @@ void mk_flbdir(void) {
 }
 
 int main(int argc, char** argv) {
+    if (argc != 3) {
+        fprintf(stdout, "Usage: %s START_ID END_ID\n", argv[0]);
+        fprintf(stdout, "Example: %s 151 1337\n", argv[0]);
+        return 0;
+    }
+
     links = linkpool_create();
     mk_flbdir();
 
-    unsigned int lb = 2374;
-    unsigned int ub = 2376;
+    unsigned int lb = strtoul(argv[1], NULL, 10);
+    unsigned int ub = strtoul(argv[2], NULL, 10);
 
     fprintf(stdout, "Download pages from %d to %d\n", lb, ub);
     for (int id = lb; id <= ub; id++) {
