@@ -66,6 +66,11 @@ int page_is_thread(xmlDocPtr doc) {
 int save_thread(unsigned int id) {
     curl_global_init(CURL_GLOBAL_ALL);
     CURL* curl_handle = curl_easy_init();
+    if (!curl_handle) {
+        fprintf(stderr, "%s: can not handle curl\n", __FUNCTION__);
+        curl_global_cleanup();
+        return 1;
+    }
 
     size_t bufsize = strlen(BASEURL) + strlen("thread.php?id=") + 17;
     char buf[bufsize];
@@ -128,7 +133,7 @@ int main(int argc, char** argv) {
         // Sleep 300ms
         usleep(300.0 * 1000);
     }
-    download_links(links, 1);
+    download_links(links, 0);
 
     linkpool_free(links);
     return 0;
@@ -166,6 +171,11 @@ int save_url_contents(char* url, char* filename, int verbose) {
 
     curl_global_init(CURL_GLOBAL_ALL);
     CURL* curl_handle = curl_easy_init();
+    if (!curl_handle) {
+        fprintf(stderr, "%s: can not handle curl\n", __FUNCTION__);
+        curl_global_cleanup();
+        return 1;
+    }
 
     FILE* file = fopen(filename, "w");
     if (!file) {

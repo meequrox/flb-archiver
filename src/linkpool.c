@@ -7,8 +7,8 @@
 static LinkNode* linknode_create(char* url, char* filename) {
     LinkNode* node = (LinkNode*)malloc(sizeof(LinkNode));
     if (node) {
-        node->url = malloc(strlen(url) * sizeof(char));
-        node->filename = malloc(strlen(filename) * sizeof(char));
+        node->url = malloc((strlen(url) + 1) * sizeof(char));
+        node->filename = malloc((strlen(filename) + 1) * sizeof(char));
         strncpy(node->url, url, strlen(url) + 1);
         strncpy(node->filename, filename, strlen(filename) + 1);
 
@@ -39,26 +39,31 @@ void linkpool_print(LinkPool* pool) {
     }
 }
 
+static void linknode_clearlist(LinkNode* node) {
+    LinkNode* cur = NULL;
+
+    while (node) {
+        cur = node;
+        node = node->next;
+
+        free(cur->filename);
+        free(cur->url);
+        free(cur);
+    }
+}
+
 void linkpool_clear(LinkPool* pool) {
     if (pool) {
-        LinkNode* cur = pool->head;
-
-        while (cur) {
-            LinkNode* prev = cur;
-
-            cur = cur->next;
-            free(prev->url);
-            free(prev->filename);
-            free(prev);
-        }
-
+        linknode_clearlist(pool->head);
         pool->head = NULL;
     }
 }
 
 void linkpool_free(LinkPool* pool) {
-    linkpool_clear(pool);
-    free(pool);
+    if (pool) {
+        linkpool_clear(pool);
+        free(pool);
+    }
 }
 
 LinkPool* linkpool_push_node(LinkPool* pool, char* url, char* filename) {
