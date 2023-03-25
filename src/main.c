@@ -10,18 +10,20 @@
 #include "linkpool.h"
 #include "memory.h"
 
+#define FF_USERAGENT "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:99.0) Gecko/20100101 Firefox/99.0"
+#define BASEURL "https://flareboard.ru/"
+
+LinkPool* links = NULL;
+
 void cd_flbdir(void);
 int str_find_nth(char* str, char symbol, int n);
 int save_url_contents(char* url, char* filename, int verbose);
 int download_links(LinkPool* pool, int verbose);
 int create_subdirs(const char* path);
 
-#define FF_USERAGENT "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:99.0) Gecko/20100101 Firefox/99.0"
-#define BASEURL "https://flareboard.ru/"
-
-LinkPool* links = NULL;
-
 int process_attrs(xmlDocPtr doc, char* xpath_expr, char* needed_attr) {
+    if (!xpath_expr || !needed_attr) return 1;
+
     xmlXPathContextPtr context = xmlXPathNewContext(doc);
     xmlXPathRegisterNs(context, (xmlChar*)"html", (xmlChar*)"http://www.w3.org/1999/xhtml");
 
@@ -46,6 +48,19 @@ int process_attrs(xmlDocPtr doc, char* xpath_expr, char* needed_attr) {
     xmlXPathFreeObject(result);
     xmlXPathFreeContext(context);
     return 0;
+}
+
+int page_is_thread(xmlDocPtr doc) {
+    xmlXPathContextPtr context = xmlXPathNewContext(doc);
+    xmlXPathRegisterNs(context, (xmlChar*)"html", (xmlChar*)"http://www.w3.org/1999/xhtml");
+
+    xmlXPathObjectPtr result = xmlXPathEvalExpression((xmlChar*)"//div[@class='postTop']", context);
+    xmlNodeSetPtr nodes = result->nodesetval;
+    int nnodes = nodes->nodeNr;
+
+    xmlXPathFreeObject(result);
+    xmlXPathFreeContext(context);
+    return nnodes;
 }
 
 int save_thread(unsigned int id) {
@@ -74,15 +89,18 @@ int save_thread(unsigned int id) {
     xmlDocPtr doc = htmlReadDoc((xmlChar*)memory.data, NULL, NULL,
                                 HTML_PARSE_NOBLANKS | HTML_PARSE_NOERROR | HTML_PARSE_NOWARNING);
 
-    process_attrs(doc, "//link", "href");
-    process_attrs(doc, "//script", "src");
-    process_attrs(doc, "//img", "src");
-    process_attrs(doc, "//video", "src");
+    if (page_is_thread(doc)) {
+        process_attrs(doc, "//link", "href");
+        process_attrs(doc, "//script", "src");
+        process_attrs(doc, "//img", "src");
+        process_attrs(doc, "//video", "src");
 
-    snprintf(buf, bufsize, "%d.html", id);
-    FILE* file = fopen(buf, "w");
-    fprintf(file, "%s\n", memory.data);
-    fclose(file);
+        snprintf(buf, bufsize, "%d.html", id);
+        FILE* file = fopen(buf, "w");
+        fprintf(file, "%s\n", memory.data);
+        fclose(file);
+    } else
+        fprintf(stderr, "%s: thread with id %d does not exist\n", __FUNCTION__, id);
 
     free(memory.data);
     xmlFreeDoc(doc);
@@ -190,6 +208,7 @@ int download_links(LinkPool* pool, int verbose) {
 
 int create_subdirs(const char* path) {
     if (!path) return 1;
+
     size_t bufsize = strlen(path) + 1;
     char buf[bufsize];
     char* buf_ptr = buf;
