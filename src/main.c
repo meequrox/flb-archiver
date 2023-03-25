@@ -121,7 +121,8 @@ int main() {
         if (xmlStrcmp(cur->name, (xmlChar*)"link") == 0) {
             xmlChar* attr = xmlGetProp(cur, (xmlChar*)"href");
 
-            if (attr) {
+            if (attr && !(strstr((char*)attr, "https://") == (char*)attr ||
+                          strstr((char*)attr, "http://") == (char*)attr)) {
                 int slash_pos = str_find((char*)attr, '/');
                 if (slash_pos >= 0) {
                     attr[slash_pos] = '\0';
@@ -133,7 +134,6 @@ int main() {
                 char buf[bufsize];
                 snprintf(buf, bufsize, "%s%s%c", BASEURL, attr, '\0');
 
-                // TODO: If start with http:// or https://, save to root
                 links = linkpool_push_node(links, buf, (char*)attr);
                 xmlFree(attr);
             }
