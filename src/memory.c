@@ -1,6 +1,7 @@
 #include "memory.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 size_t write_memory_callback(void* contents, size_t size, size_t nmemb, struct MemoryStruct* userdata) {
     if (!userdata) {

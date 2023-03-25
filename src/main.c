@@ -56,26 +56,52 @@ int download_links(LinkPool* pool, int verbose) {
     return 0;
 }
 
-int str_find(char* str, char symbol) {
+int str_find_nth(char* str, char symbol, int n) {
     if (!str) return -1;
 
+    int count = 0;
     int i = 0;
     while (str[i]) {
-        if (str[i] == symbol) return i;
+        if (str[i] == symbol) count++;
+        if (count == n) return i;
         i++;
     }
     return -1;
 }
 
-int main() {
+int create_subdirs(const char* path) {
+    if (!path) return 1;
+    size_t bufsize = strlen(path) + 1;
+    char buf[bufsize];
+    char* buf_ptr = buf;
+    strncpy(buf_ptr, path, bufsize);
+
+    int n = 1;
+    int slash_pos = str_find_nth(buf_ptr, '/', n);
+    while (slash_pos >= 0) {
+        buf_ptr[slash_pos] = '\0';
+        mkdir(buf_ptr, 0755);
+        buf_ptr[slash_pos] = '/';
+
+        n++;
+        slash_pos = str_find_nth(buf_ptr, '/', n);
+    }
+
+    return 0;
+}
+
+LinkPool* links = NULL;
+
+int save_thread(unsigned int id) {
     curl_global_init(CURL_GLOBAL_ALL);
     CURL* curl_handle = curl_easy_init();
 
-    //    const char* baseurl = "https://flareboard.ru/thread.php?id=1327";
-    const char* url = "https://flareboard.ru/thread.php?id=2666";
+    size_t bufsize = strlen(BASEURL) + strlen("thread.php?id=") + 17;
+    char buf[bufsize];
+    snprintf(buf, bufsize, BASEURL "thread.php?id=%d", id);
     struct MemoryStruct memory = {malloc(1), 0};
 
-    curl_easy_setopt(curl_handle, CURLOPT_URL, url);
+    curl_easy_setopt(curl_handle, CURLOPT_URL, buf);
     curl_easy_setopt(curl_handle, CURLOPT_FOLLOWLOCATION, 0);
     curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, write_memory_callback);
     curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void*)&memory);
@@ -85,22 +111,10 @@ int main() {
     curl_easy_cleanup(curl_handle);
 
     if (response != CURLE_OK) {
-        fprintf(stderr, "curl_easy_perform() for %s failed: %s\n", url, curl_easy_strerror(response));
-        return 0;
+        fprintf(stderr, "curl_easy_perform() for %s failed: %s\n", buf, curl_easy_strerror(response));
+        return 1;
     }
 
-    time_t t = time(NULL);
-    struct tm* tm = localtime(&t);
-
-    char dirname_buf[32];
-    snprintf(dirname_buf, 32, "flb_%02d.%02d.%02d_%d", tm->tm_mday, tm->tm_mon + 1,
-             (tm->tm_year + 1900) % 2000, tm->tm_hour * tm->tm_min + tm->tm_sec);
-    printf("Working directory: %s\n", dirname_buf);
-
-    mkdir(dirname_buf, 0755);
-    chdir(dirname_buf);
-
-    LinkPool* links = linkpool_create();
     xmlDocPtr doc = htmlReadDoc((xmlChar*)memory.data, NULL, NULL,
                                 HTML_PARSE_NOBLANKS | HTML_PARSE_NOERROR | HTML_PARSE_NOWARNING);
 
@@ -119,18 +133,13 @@ int main() {
 
             if (attr && !(strstr((char*)attr, "https://") == (char*)attr ||
                           strstr((char*)attr, "http://") == (char*)attr)) {
-                int slash_pos = str_find((char*)attr, '/');
-                if (slash_pos >= 0) {
-                    attr[slash_pos] = '\0';
-                    mkdir((char*)attr, 0755);
-                    attr[slash_pos] = '/';
-                }
+                create_subdirs((char*)attr);
 
                 size_t url_bufsize = strlen(BASEURL) + strlen((char*)attr) + 1;
                 char url_buf[url_bufsize];
                 snprintf(url_buf, url_bufsize, "%s%s%c", BASEURL, attr, '\0');
-
                 links = linkpool_push_node(links, url_buf, (char*)attr);
+
                 xmlFree(attr);
             }
         }
@@ -138,15 +147,45 @@ int main() {
         cur = cur->next;
     }
 
-    FILE* file = fopen("index.html", "w");
+    snprintf(buf, bufsize, "%d.html", id);
+    FILE* file = fopen(buf, "w");
     fprintf(file, "%s\n", memory.data);
     fclose(file);
+
+    free(memory.data);
+    xmlFreeDoc(doc);
+    curl_global_cleanup();
+    return 0;
+}
+
+void mk_flbdir(void) {
+    time_t t = time(NULL);
+    struct tm* tm = localtime(&t);
+
+    char dirname_buf[32];
+    snprintf(dirname_buf, 32, "flb_%02d.%02d.%02d_%d", tm->tm_mday, tm->tm_mon + 1,
+             (tm->tm_year + 1900) % 2000, tm->tm_hour * tm->tm_min + tm->tm_sec);
+
+    mkdir(dirname_buf, 0755);
+    chdir(dirname_buf);
+
+    fprintf(stdout, "Working directory: %s\n", dirname_buf);
+}
+
+int main() {
+    links = linkpool_create();
+    mk_flbdir();
+
+    for (int id = 1; id <= 100; id++) {
+        save_thread(id);
+
+        // Sleep 300ms
+        usleep(300.0 * 1000);
+    }
+
     download_links(links, 1);
     save_url_contents(BASEURL "img/logo.svg", "img/logo.svg", 1);
 
-    free(memory.data);
     linkpool_free(links);
-    xmlFreeDoc(doc);
-    curl_global_cleanup();
     return 0;
 }
