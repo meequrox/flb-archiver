@@ -1,5 +1,7 @@
 #include <curl/curl.h>
 #include <libxml2/libxml/HTMLparser.h>
+#include <libxml2/libxml/xpath.h>
+#include <libxml2/libxml/xpathInternals.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -92,6 +94,17 @@ int create_subdirs(const char* path) {
 
 LinkPool* links = NULL;
 
+int process_attr(char* attr) {
+    create_subdirs((char*)attr);
+
+    size_t url_bufsize = strlen(BASEURL) + strlen((char*)attr) + 1;
+    char url_buf[url_bufsize];
+    snprintf(url_buf, url_bufsize, "%s%s%c", BASEURL, attr, '\0');
+    links = linkpool_push_node(links, url_buf, (char*)attr);
+
+    xmlFree(attr);
+}
+
 int save_thread(unsigned int id) {
     curl_global_init(CURL_GLOBAL_ALL);
     CURL* curl_handle = curl_easy_init();
@@ -133,18 +146,30 @@ int save_thread(unsigned int id) {
 
             if (attr && !(strstr((char*)attr, "https://") == (char*)attr ||
                           strstr((char*)attr, "http://") == (char*)attr)) {
-                create_subdirs((char*)attr);
-
-                size_t url_bufsize = strlen(BASEURL) + strlen((char*)attr) + 1;
-                char url_buf[url_bufsize];
-                snprintf(url_buf, url_bufsize, "%s%s%c", BASEURL, attr, '\0');
-                links = linkpool_push_node(links, url_buf, (char*)attr);
-
-                xmlFree(attr);
+                process_attr((char*)attr);
             }
         }
 
         cur = cur->next;
+    }
+
+    xmlXPathContextPtr context = xmlXPathNewContext(doc);
+    xmlXPathRegisterNs(context, (xmlChar*)"html", (xmlChar*)"http://www.w3.org/1999/xhtml");
+
+    xmlXPathObjectPtr result_img = xmlXPathEvalExpression((xmlChar*)"//img", context);
+    xmlNodeSetPtr nodes_img = result_img->nodesetval;
+    for (int i = 0; i < nodes_img->nodeNr; i++) {
+        xmlNodePtr node_img = nodes_img->nodeTab[i];
+        xmlChar* src = xmlGetProp(node_img, (xmlChar*)"src");
+        if (src) process_attr((char*)src);
+    }
+
+    xmlXPathObjectPtr result_video = xmlXPathEvalExpression((xmlChar*)"//video", context);
+    xmlNodeSetPtr nodes_video = result_video->nodesetval;
+    for (int i = 0; i < nodes_video->nodeNr; i++) {
+        xmlNodePtr node_video = nodes_video->nodeTab[i];
+        xmlChar* src = xmlGetProp(node_video, (xmlChar*)"src");
+        if (src) process_attr((char*)src);
     }
 
     snprintf(buf, bufsize, "%d.html", id);
@@ -153,6 +178,9 @@ int save_thread(unsigned int id) {
     fclose(file);
 
     free(memory.data);
+    xmlXPathFreeObject(result_img);
+    xmlXPathFreeObject(result_video);
+    xmlXPathFreeContext(context);
     xmlFreeDoc(doc);
     curl_global_cleanup();
     return 0;
@@ -172,19 +200,21 @@ void mk_flbdir(void) {
     fprintf(stdout, "Working directory: %s\n", dirname_buf);
 }
 
-int main() {
+int main(int argc, char** argv) {
     links = linkpool_create();
     mk_flbdir();
 
-    for (int id = 1; id <= 100; id++) {
+    unsigned int lb = 2374;
+    unsigned int ub = 2376;
+
+    fprintf(stdout, "Download pages from %d to %d\n", lb, ub);
+    for (int id = lb; id <= ub; id++) {
         save_thread(id);
 
         // Sleep 300ms
         usleep(300.0 * 1000);
     }
-
     download_links(links, 1);
-    save_url_contents(BASEURL "img/logo.svg", "img/logo.svg", 1);
 
     linkpool_free(links);
     return 0;
