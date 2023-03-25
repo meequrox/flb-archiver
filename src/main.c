@@ -45,7 +45,7 @@ size_t write_file_callback(char* ptr, size_t size, size_t nmemb, FILE* fd) {
     return fwrite(ptr, size, nmemb, fd);
 }
 
-int save_url_contents(char* url, char* filename) {
+int save_url_contents(char* url, char* filename, int verbose) {
     if (!url || !filename) return 1;
 
     curl_global_init(CURL_GLOBAL_ALL);
@@ -69,9 +69,25 @@ int save_url_contents(char* url, char* filename) {
     if (response != CURLE_OK) {
         fprintf(stderr, "curl_easy_perform() for %s failed: %s\n", url, curl_easy_strerror(response));
         return 1;
+    } else if (verbose) {
+        fprintf(stdout, "%s -> %s\n", url, filename);
     }
 
+    fclose(file);
     curl_global_cleanup();
+    return 0;
+}
+
+int download_links(LinkPool* pool, int verbose) {
+    if (!pool) return 1;
+
+    LinkNode* cur = pool->head;
+
+    while (cur) {
+        save_url_contents(cur->url, cur->filename, verbose);
+        cur = cur->next;
+    }
+
     return 0;
 }
 
@@ -118,7 +134,7 @@ int main() {
     char dirname_buf[32];
     snprintf(dirname_buf, 32, "flb_%02d.%02d.%02d_%d", tm->tm_mday, tm->tm_mon + 1,
              (tm->tm_year + 1900) % 2000, tm->tm_hour * tm->tm_min + tm->tm_sec);
-    printf("%s\n", dirname_buf);
+    printf("Working directory: %s\n", dirname_buf);
 
     mkdir(dirname_buf, 0755);
     chdir(dirname_buf);
@@ -130,8 +146,15 @@ int main() {
     // <html> <-- <head> <-- <node> --- <node>
     xmlNodePtr cur = xmlDocGetRootElement(doc)->children->children;
     while (cur) {
-        if (xmlStrcmp(cur->name, (xmlChar*)"link") == 0) {
-            xmlChar* attr = xmlGetProp(cur, (xmlChar*)"href");
+        int is_link = xmlStrcmp(cur->name, (xmlChar*)"link") == 0;
+        int is_script = xmlStrcmp(cur->name, (xmlChar*)"script") == 0;
+
+        if (is_link || is_script) {
+            xmlChar* attr = NULL;
+            if (is_link)
+                attr = xmlGetProp(cur, (xmlChar*)"href");
+            else
+                attr = xmlGetProp(cur, (xmlChar*)"src");
 
             if (attr && !(strstr((char*)attr, "https://") == (char*)attr ||
                           strstr((char*)attr, "http://") == (char*)attr)) {
@@ -154,10 +177,11 @@ int main() {
         cur = cur->next;
     }
 
-    linkpool_print(links);
-
-    // TODO: Save files
-    xmlSaveFormatFileEnc("output.html", doc, "UTF-8", 1);
+    FILE* file = fopen("index.html", "w");
+    fprintf(file, "%s\n", memory.data);
+    fclose(file);
+    download_links(links, 1);
+    save_url_contents(BASEURL "img/logo.svg", "img/logo.svg", 1);
 
     free(memory.data);
     linkpool_free(links);
