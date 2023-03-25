@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include "linkpool.h"
 
@@ -111,6 +112,17 @@ int main() {
         return 0;
     }
 
+    time_t t = time(NULL);
+    struct tm* tm = localtime(&t);
+
+    char dirname_buf[32];
+    snprintf(dirname_buf, 32, "flb_%02d.%02d.%02d_%d", tm->tm_mday, tm->tm_mon + 1,
+             (tm->tm_year + 1900) % 2000, tm->tm_hour * tm->tm_min + tm->tm_sec);
+    printf("%s\n", dirname_buf);
+
+    mkdir(dirname_buf, 0755);
+    chdir(dirname_buf);
+
     LinkPool* links = linkpool_create();
     xmlDocPtr doc = htmlReadDoc((xmlChar*)memory.data, NULL, NULL,
                                 HTML_PARSE_NOBLANKS | HTML_PARSE_NOERROR | HTML_PARSE_NOWARNING);
@@ -130,11 +142,11 @@ int main() {
                     attr[slash_pos] = '/';
                 }
 
-                size_t bufsize = strlen(BASEURL) + strlen((char*)attr) + 1;
-                char buf[bufsize];
-                snprintf(buf, bufsize, "%s%s%c", BASEURL, attr, '\0');
+                size_t url_bufsize = strlen(BASEURL) + strlen((char*)attr) + 1;
+                char url_buf[url_bufsize];
+                snprintf(url_buf, url_bufsize, "%s%s%c", BASEURL, attr, '\0');
 
-                links = linkpool_push_node(links, buf, (char*)attr);
+                links = linkpool_push_node(links, url_buf, (char*)attr);
                 xmlFree(attr);
             }
         }
@@ -145,7 +157,7 @@ int main() {
     linkpool_print(links);
 
     // TODO: Save files
-    // xmlSaveFormatFileEnc("output.html", doc, "UTF-8", 1);
+    xmlSaveFormatFileEnc("output.html", doc, "UTF-8", 1);
 
     free(memory.data);
     linkpool_free(links);

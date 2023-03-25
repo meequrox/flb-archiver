@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.5)
 
 project(flb-archiver LANGUAGES C)
+set(CMAKE_C_STANDARD 11)
 
 add_executable(flb-archiver src/main.c)
 target_sources(flb-archiver PRIVATE
