@@ -6,8 +6,10 @@ set(CMAKE_C_STANDARD 11)
 add_executable(flb-archiver src/main.c)
 target_sources(flb-archiver PRIVATE
     src/linkpool.h
+    src/memory.h
 
     src/linkpool.c
+    src/memory.c
 )
 
 find_package(LibXml2 REQUIRED)

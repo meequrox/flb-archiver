@@ -6,44 +6,10 @@
 #include <unistd.h>
 
 #include "linkpool.h"
+#include "memory.h"
 
 #define FF_USERAGENT "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:99.0) Gecko/20100101 Firefox/99.0"
 #define BASEURL "https://flareboard.ru/"
-
-struct MemoryStruct {
-    char* data;
-    size_t size;
-};
-
-size_t write_memory_callback(void* contents, size_t size, size_t nmemb, struct MemoryStruct* userdata) {
-    if (!userdata) {
-        fprintf(stderr, "%s: userdata is NULL\n", __FUNCTION__);
-        return 0;
-    }
-
-    size_t realsize = size * nmemb;
-    char* ptr = realloc(userdata->data, userdata->size + realsize + 1);
-    if (!ptr) {
-        fprintf(stderr, "%s: not enough memory\n", __FUNCTION__);
-        return 0;
-    }
-
-    userdata->data = ptr;
-    memcpy(&(userdata->data[userdata->size]), contents, realsize);
-    userdata->size += realsize;
-    userdata->data[userdata->size] = 0;
-
-    return realsize;
-}
-
-size_t write_file_callback(char* ptr, size_t size, size_t nmemb, FILE* fd) {
-    if (!fd) {
-        fprintf(stderr, "%s: file descriptor is NULL\n", __FUNCTION__);
-        return 0;
-    }
-
-    return fwrite(ptr, size, nmemb, fd);
-}
 
 int save_url_contents(char* url, char* filename, int verbose) {
     if (!url || !filename) return 1;
@@ -69,9 +35,8 @@ int save_url_contents(char* url, char* filename, int verbose) {
     if (response != CURLE_OK) {
         fprintf(stderr, "curl_easy_perform() for %s failed: %s\n", url, curl_easy_strerror(response));
         return 1;
-    } else if (verbose) {
+    } else if (verbose)
         fprintf(stdout, "%s -> %s\n", url, filename);
-    }
 
     fclose(file);
     curl_global_cleanup();
@@ -96,13 +61,9 @@ int str_find(char* str, char symbol) {
 
     int i = 0;
     while (str[i]) {
-        if (str[i] == symbol) {
-            return i;
-        }
-
+        if (str[i] == symbol) return i;
         i++;
     }
-
     return -1;
 }
 
