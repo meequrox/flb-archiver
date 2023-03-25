@@ -9,8 +9,8 @@ static LinkNode* linknode_create(char* url, char* filename) {
     if (node) {
         node->url = malloc(strlen(url) * sizeof(char));
         node->filename = malloc(strlen(filename) * sizeof(char));
-        strcpy(node->url, url);
-        strcpy(node->filename, filename);
+        strncpy(node->url, url, strlen(url) + 1);
+        strncpy(node->filename, filename, strlen(filename) + 1);
 
         node->next = NULL;
     } else {
