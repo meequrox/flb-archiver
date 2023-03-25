@@ -2,7 +2,7 @@
 **[Flareboard](https://flareboard.ru/) web archiver in C using libcurl**
 
 It saves:
-- Thread page
+- Thread page (w/o deleted posts)
 - CSS styles and JS scripts
 - Pinned images/videos
 - User profile photos
