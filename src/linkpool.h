@@ -1,20 +1,22 @@
 #ifndef LINKPOOL_H
 #define LINKPOOL_H
 
-#include <stddef.h>
-
-#define LINKPOOL_MAX_LINKS 30
-
-extern size_t linkpool_nodes;
-extern int linkpool_freed;
-
-struct LinkPoolNode {
+typedef struct linknode {
     char* url;
     char* filename;
-    int exist;
-};
+    struct linknode* next;
+} LinkNode;
 
-void linkpool_print(struct LinkPoolNode** pool);
-void linkpool_free(struct LinkPoolNode** pool);
+typedef struct linkpool {
+    LinkNode* head;
+} LinkPool;
+
+LinkPool* linkpool_create(void);
+void linkpool_print(LinkPool* pool);
+void linkpool_clear(LinkPool* pool);
+void linkpool_free(LinkPool* pool);
+
+LinkPool* linkpool_push_node(LinkPool* pool, char* url, char* filename);
+LinkPool* linkpool_delete_node(LinkPool* pool, char* url, char* filename);
 
 #endif  // LINKPOOL_H

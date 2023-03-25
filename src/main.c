@@ -1,7 +1,6 @@
 #include <curl/curl.h>
 #include <libxml2/libxml/HTMLparser.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 
@@ -112,24 +111,17 @@ int main() {
         return 0;
     }
 
-    struct LinkPoolNode** linkpool = malloc(LINKPOOL_MAX_LINKS * sizeof(struct LinkPoolNode*));
-    for (int i = 0; i < LINKPOOL_MAX_LINKS; i++) {
-        linkpool[i] = malloc(sizeof(struct LinkPoolNode));
-        linkpool[i]->exist = 0;
-    }
-
+    LinkPool* links = linkpool_create();
     xmlDocPtr doc = htmlReadDoc((xmlChar*)memory.data, NULL, NULL,
                                 HTML_PARSE_NOBLANKS | HTML_PARSE_NOERROR | HTML_PARSE_NOWARNING);
-    xmlNodePtr cur = xmlDocGetRootElement(doc)->children->children;  // <html> <-- <head> <-- <node>
-    linkpool_nodes = 0;
+
+    // <html> <-- <head> <-- <node> --- <node>
+    xmlNodePtr cur = xmlDocGetRootElement(doc)->children->children;
     while (cur) {
         if (xmlStrcmp(cur->name, (xmlChar*)"link") == 0) {
             xmlChar* attr = xmlGetProp(cur, (xmlChar*)"href");
 
             if (attr) {
-                size_t base_len = strlen(BASEURL);
-                size_t attr_len = strlen((char*)attr);
-
                 int slash_pos = str_find((char*)attr, '/');
                 if (slash_pos >= 0) {
                     attr[slash_pos] = '\0';
@@ -137,13 +129,12 @@ int main() {
                     attr[slash_pos] = '/';
                 }
 
-                linkpool[linkpool_nodes]->url = malloc(base_len * sizeof(char));
-                linkpool[linkpool_nodes]->filename = malloc(attr_len * sizeof(char));
-                strcpy(linkpool[linkpool_nodes]->url, BASEURL);
-                strcpy(linkpool[linkpool_nodes]->filename, (char*)attr);
-                linkpool[linkpool_nodes]->exist = 1;
-                linkpool_nodes++;
+                size_t bufsize = strlen(BASEURL) + strlen((char*)attr) + 1;
+                char buf[bufsize];
+                snprintf(buf, bufsize, "%s%s%c", BASEURL, attr, '\0');
 
+                // TODO: If start with http:// or https://, save to root
+                links = linkpool_push_node(links, buf, (char*)attr);
                 xmlFree(attr);
             }
         }
@@ -151,12 +142,13 @@ int main() {
         cur = cur->next;
     }
 
-    linkpool_print(linkpool);
+    linkpool_print(links);
 
-    //    xmlSaveFormatFileEnc("output.html", doc, "UTF-8", 1);
+    // TODO: Save files
+    // xmlSaveFormatFileEnc("output.html", doc, "UTF-8", 1);
 
     free(memory.data);
-    linkpool_free(linkpool);
+    linkpool_free(links);
     xmlFreeDoc(doc);
     curl_global_cleanup();
     return 0;
