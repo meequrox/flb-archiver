@@ -16,7 +16,7 @@
 LinkPool* links = NULL;
 
 void cd_flbdir(void);
-int str_find_nth(char* str, char symbol, int n);
+int str_find_nth(const char* str, char symbol, int n);
 int save_url_contents(char* url, char* filename, int verbose);
 int download_links(LinkPool* pool, int verbose);
 int create_subdirs(const char* path);
@@ -133,8 +133,8 @@ int main(int argc, char** argv) {
     for (unsigned int id = lb; id <= ub; ++id) {
         save_thread(id);
 
-        // Sleep 300ms
-        usleep(300.0 * 1000);
+        const int usecs = 300.0 * 1000;
+        usleep(usecs);
     }
 
     fprintf(stdout, "\nAll pages saved! Start downloading extra links (img, video)");
@@ -152,13 +152,13 @@ void cd_flbdir(void) {
     snprintf(dirname_buf, 32, "flb_%02d.%02d.%02d_%d", tm->tm_mday, tm->tm_mon + 1,
              (tm->tm_year + 1900) % 2000, tm->tm_hour * tm->tm_min + tm->tm_sec);
 
-    mkdir(dirname_buf, 0755);
+    mkdir(dirname_buf, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
     chdir(dirname_buf);
 
     fprintf(stdout, "Working directory: %s\n", dirname_buf);
 }
 
-int str_find_nth(char* str, char symbol, int n) {
+int str_find_nth(const char* str, char symbol, int n) {
     if (!str) {
         return -1;
     }
@@ -208,7 +208,9 @@ int save_url_contents(char* url, char* filename, int verbose) {
     if (response != CURLE_OK) {
         fprintf(stderr, "curl_easy_perform() for %s failed: %s\n", url, curl_easy_strerror(response));
         return 1;
-    } else if (verbose) {
+    }
+
+    if (verbose) {
         fprintf(stdout, "%s -> %s\n", url, filename);
     }
 
