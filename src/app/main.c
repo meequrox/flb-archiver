@@ -137,7 +137,7 @@ int main(int argc, char** argv) {
         usleep(usecs);
     }
 
-    fprintf(stdout, "\nAll pages saved! Start downloading extra links (img, video)");
+    fprintf(stdout, "All pages saved! Start downloading extra links (img, video)\n");
     download_links(links, 0);
 
     linkpool_free(links);
@@ -148,9 +148,11 @@ void cd_flbdir(void) {
     time_t t = time(NULL);
     struct tm* tm = localtime(&t);
 
+    int short_year = (tm->tm_year + 1900) % 2000;
+
     char dirname_buf[32];
-    snprintf(dirname_buf, 32, "flb_%02d.%02d.%02d_%d", tm->tm_mday, tm->tm_mon + 1,
-             (tm->tm_year + 1900) % 2000, tm->tm_hour * tm->tm_min + tm->tm_sec);
+    snprintf(dirname_buf, 32, "flb_%02d.%02d.%02d_%d-%d", short_year, tm->tm_mon + 1,
+             tm->tm_mday, tm->tm_hour, tm->tm_min);
 
     mkdir(dirname_buf, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
     chdir(dirname_buf);
