@@ -51,6 +51,7 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
-# Qt Creator
+# IDE
 build/
 CMakeLists.txt.user*
+.idea/

@@ -1,5 +1,5 @@
-#ifndef LINKPOOL_H
-#define LINKPOOL_H
+#ifndef FLB_ARCHIVER_LINKPOOL_H
+#define FLB_ARCHIVER_LINKPOOL_H
 
 typedef struct linknode {
     char* url;
@@ -19,4 +19,4 @@ void linkpool_free(LinkPool* pool);
 LinkPool* linkpool_push_node(LinkPool* pool, char* url, char* filename);
 LinkPool* linkpool_delete_node(LinkPool* pool, char* url, char* filename);
 
-#endif  // LINKPOOL_H
+#endif  // FLB_ARCHIVER_LINKPOOL_H

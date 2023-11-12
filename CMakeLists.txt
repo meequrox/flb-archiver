@@ -1,22 +1,19 @@
 cmake_minimum_required(VERSION 3.5)
 
-project(flb-archiver LANGUAGES C)
-set(CMAKE_C_STANDARD 11)
+project(flb-archiver)
 
-add_executable(flb-archiver src/main.c)
-target_sources(flb-archiver PRIVATE
-    src/linkpool.h
-    src/memory.h
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
 
-    src/linkpool.c
-    src/memory.c
-)
+find_program(CLANG_TIDY_EXE NAMES clang-tidy)
+if (NOT CLANG_TIDY_EXE)
+    message(WARNING "clang-tidy not found")
+else()
+    execute_process(COMMAND
+        ${CLANG_TIDY_EXE} --version
+        OUTPUT_VARIABLE CLANG_TIDY_VERSION
+    )
+    message("clang-tidy found:\n" ${CLANG_TIDY_VERSION})
+endif()
 
-find_package(LibXml2 REQUIRED)
-target_link_libraries(flb-archiver PUBLIC LibXml2::LibXml2)
-
-find_package(CURL REQUIRED)
-target_link_libraries(flb-archiver PUBLIC CURL::libcurl)
-
-install(TARGETS flb-archiver
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+add_subdirectory(src)
