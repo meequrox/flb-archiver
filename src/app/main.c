@@ -1,5 +1,6 @@
 #include <curl/curl.h>
 #include <libxml2/libxml/HTMLparser.h>
+#include <libxml2/libxml/xmlsave.h>
 #include <libxml2/libxml/xpath.h>
 #include <libxml2/libxml/xpathInternals.h>
 #include <stdio.h>
@@ -104,10 +105,11 @@ int save_thread(unsigned int id) {
         process_attrs(context, "//video", "src");
 
         snprintf(buf, bufsize, "%d.html", id);
-        FILE* file = fopen(buf, "w");
 
-        fprintf(file, "%s\n", memory.data);
-        fclose(file);
+        xmlSaveCtxt* saveCtxt = xmlSaveToFilename(
+            buf, "UTF-8", XML_SAVE_FORMAT | XML_SAVE_NO_DECL | XML_SAVE_NO_EMPTY | XML_SAVE_AS_HTML);
+        xmlSaveDoc(saveCtxt, doc);
+        xmlSaveClose(saveCtxt);
     } else {
         fprintf(stderr, "%s: thread with id %d does not exist\n", __func__, id);
     }
@@ -153,7 +155,7 @@ void cd_flbdir(void) {
     int short_year = (tm->tm_year + 1900) % 2000;
 
     char dirname_buf[32];
-    snprintf(dirname_buf, 32, "flb_%02d.%02d.%02d_%d-%d", short_year, tm->tm_mon + 1, tm->tm_mday,
+    snprintf(dirname_buf, 32, "flb_%02d.%02d.%02d_%02d-%02d", short_year, tm->tm_mon + 1, tm->tm_mday,
              tm->tm_hour, tm->tm_min);
 
     mkdir(dirname_buf, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
