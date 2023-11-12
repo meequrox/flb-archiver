@@ -6,22 +6,25 @@
 
 static LinkNode* linknode_create(const char* url, const char* filename) {
     LinkNode* node = (LinkNode*) malloc(sizeof(LinkNode));
-    if (node) {
-        node->url = malloc((strlen(url) + 1) * sizeof(char));
-        node->filename = malloc((strlen(filename) + 1) * sizeof(char));
-        strncpy(node->url, url, strlen(url) + 1);
-        strncpy(node->filename, filename, strlen(filename) + 1);
 
-        node->next = NULL;
-    } else {
+    if (!node) {
         fprintf(stderr, "%s: malloc failed\n", __func__);
+        return NULL;
     }
+
+    node->url = malloc((strlen(url) + 1) * sizeof(char));
+    node->filename = malloc((strlen(filename) + 1) * sizeof(char));
+    strncpy(node->url, url, strlen(url) + 1);
+    strncpy(node->filename, filename, strlen(filename) + 1);
+
+    node->next = NULL;
 
     return node;
 }
 
 LinkPool* linkpool_create(void) {
     LinkPool* pool = (LinkPool*) malloc(sizeof(LinkPool));
+
     if (pool) {
         pool->head = NULL;
     } else {
@@ -31,11 +34,15 @@ LinkPool* linkpool_create(void) {
     return pool;
 }
 
-void linkpool_print(const LinkPool* pool) {
+void linkpool_print(FILE* stream, const LinkPool* pool) {
+    if (!stream) {
+        stream = stdout;
+    }
+
     if (pool) {
         LinkNode* cur = pool->head;
         while (cur) {
-            fprintf(stdout, "%s -> %s\n", cur->url, cur->filename);
+            fprintf(stream, "%s -> %s\n", cur->url, cur->filename);
             cur = cur->next;
         }
     }
@@ -50,6 +57,9 @@ static void linknode_clearlist(LinkNode* node) {
 
         free(cur->filename);
         free(cur->url);
+        cur->filename = NULL;
+        cur->url = NULL;
+
         free(cur);
     }
 }
@@ -64,7 +74,9 @@ void linkpool_clear(LinkPool* pool) {
 void linkpool_free(LinkPool* pool) {
     if (pool) {
         linkpool_clear(pool);
+
         free(pool);
+        pool = NULL;
     }
 }
 

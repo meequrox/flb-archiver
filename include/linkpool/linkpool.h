@@ -1,6 +1,8 @@
 #ifndef FLB_ARCHIVER_LINKPOOL_H
 #define FLB_ARCHIVER_LINKPOOL_H
 
+#include <stdio.h>
+
 typedef struct linknode {
     char* url;
     char* filename;
@@ -12,7 +14,7 @@ typedef struct linkpool {
 } LinkPool;
 
 LinkPool* linkpool_create(void);
-void linkpool_print(const LinkPool* pool);
+void linkpool_print(FILE* stream, const LinkPool* pool);
 void linkpool_clear(LinkPool* pool);
 void linkpool_free(LinkPool* pool);
 
