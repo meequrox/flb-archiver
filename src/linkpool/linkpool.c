@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static LinkNode* linknode_create(char* url, char* filename) {
+static LinkNode* linknode_create(const char* url, const char* filename) {
     LinkNode* node = (LinkNode*) malloc(sizeof(LinkNode));
     if (node) {
         node->url = malloc((strlen(url) + 1) * sizeof(char));
@@ -31,7 +31,7 @@ LinkPool* linkpool_create(void) {
     return pool;
 }
 
-void linkpool_print(LinkPool* pool) {
+void linkpool_print(const LinkPool* pool) {
     if (pool) {
         LinkNode* cur = pool->head;
         while (cur) {
@@ -68,7 +68,7 @@ void linkpool_free(LinkPool* pool) {
     }
 }
 
-LinkPool* linkpool_push_node(LinkPool* pool, char* url, char* filename) {
+LinkPool* linkpool_push_node(LinkPool* pool, const char* url, const char* filename) {
     if (!pool) {
         return NULL;
     }
@@ -95,7 +95,7 @@ LinkPool* linkpool_push_node(LinkPool* pool, char* url, char* filename) {
     return pool;
 }
 
-LinkPool* linkpool_delete_node(LinkPool* pool, char* url, char* filename) {
+LinkPool* linkpool_delete_node(LinkPool* pool, const char* url, const char* filename) {
     if (!pool) {
         return NULL;
     }
