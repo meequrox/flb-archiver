@@ -120,21 +120,31 @@ int save_thread(unsigned int id) {
     return 0;
 }
 
+void usage(char** argv) {
+    fprintf(stdout, "Usage: %s START_ID END_ID\n", argv[0]);
+    fprintf(stdout, "Example: %s 151 1337\n", argv[0]);
+}
+
 int main(int argc, char** argv) {
     if (argc != 3) {
-        fprintf(stdout, "Usage: %s START_ID END_ID\n", argv[0]);
-        fprintf(stdout, "Example: %s 151 1337\n", argv[0]);
-        return 0;
+        usage(argv);
+        return EXIT_FAILURE;
+    }
+
+    int start = strtol(argv[1], NULL, 10);
+    int end = strtol(argv[2], NULL, 10);
+
+    if (start < 1 || end < 1 || end < start) {
+        fprintf(stderr, "Invalid ID range [%d, %d]\n", start, end);
+        usage(argv);
+        return EXIT_FAILURE;
     }
 
     links = linkpool_create();
     cd_flbdir();
 
-    unsigned int lb = strtoul(argv[1], NULL, 10);
-    unsigned int ub = strtoul(argv[2], NULL, 10);
-
-    fprintf(stdout, "Download pages from %d to %d\n", lb, ub);
-    for (unsigned int id = lb; id <= ub; ++id) {
+    fprintf(stdout, "Download pages from %d to %d\n", start, end);
+    for (int id = start; id <= end; ++id) {
         save_thread(id);
 
         const int usecs = 300.0 * 1000;
@@ -145,7 +155,7 @@ int main(int argc, char** argv) {
     download_links(links, 0);
 
     linkpool_free(links);
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 void cd_flbdir(void) {
