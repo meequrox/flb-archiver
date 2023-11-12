@@ -21,48 +21,44 @@ int save_url_contents(char* url, char* filename, int verbose);
 int download_links(LinkPool* pool, int verbose);
 int create_subdirs(const char* path);
 
-int process_attrs(xmlDocPtr doc, char* xpath_expr, char* needed_attr) {
+int process_attrs(xmlXPathContext* context, const char* xpath_expr, const char* needed_attr) {
     if (!xpath_expr || !needed_attr) {
         return 1;
     }
 
-    xmlXPathContextPtr context = xmlXPathNewContext(doc);
-    xmlXPathRegisterNs(context, (xmlChar*) "html", (xmlChar*) "http://www.w3.org/1999/xhtml");
+    xmlXPathObject* result = xmlXPathEvalExpression((xmlChar*) xpath_expr, context);
+    xmlNodeSet* nodes = result->nodesetval;
 
-    xmlXPathObjectPtr result = xmlXPathEvalExpression((xmlChar*) xpath_expr, context);
-    xmlNodeSetPtr nodes = result->nodesetval;
     for (int i = 0; i < nodes->nodeNr; ++i) {
-        xmlNodePtr node = nodes->nodeTab[i];
+        xmlNode* node = nodes->nodeTab[i];
+
         xmlChar* attr = xmlGetProp(node, (xmlChar*) needed_attr);
-        if (attr && !(strstr((char*) attr, "https://") == (char*) attr ||
-                      strstr((char*) attr, "http://") == (char*) attr)) {
+
+        if (attr && !((char*) attr == strstr((char*) attr, "https://") ||
+                      (char*) attr == strstr((char*) attr, "http://"))) {
             create_subdirs((char*) attr);
 
             size_t url_bufsize = strlen(BASEURL) + strlen((char*) attr) + 1;
+
             char url_buf[url_bufsize];
             snprintf(url_buf, url_bufsize, "%s%s%c", BASEURL, attr, '\0');
-            links = linkpool_push_node(links, url_buf, (char*) attr);
 
+            links = linkpool_push_node(links, url_buf, (char*) attr);
             xmlFree(attr);
         }
     }
 
     xmlXPathFreeObject(result);
-    xmlXPathFreeContext(context);
     return 0;
 }
 
-int page_is_thread(xmlDocPtr doc) {
-    xmlXPathContextPtr context = xmlXPathNewContext(doc);
-    xmlXPathRegisterNs(context, (xmlChar*) "html", (xmlChar*) "http://www.w3.org/1999/xhtml");
-
-    xmlXPathObjectPtr result = xmlXPathEvalExpression((xmlChar*) "//div[@class='postTop']", context);
-    xmlNodeSetPtr nodes = result->nodesetval;
+int page_is_thread(xmlXPathContext* context) {
+    xmlXPathObject* result = xmlXPathEvalExpression((xmlChar*) "//div[@class='postTop']", context);
+    xmlNodeSet* nodes = result->nodesetval;
     int nnodes = nodes->nodeNr;
 
     xmlXPathFreeObject(result);
-    xmlXPathFreeContext(context);
-    return nnodes;
+    return nnodes > 0;
 }
 
 int save_thread(unsigned int id) {
@@ -75,8 +71,10 @@ int save_thread(unsigned int id) {
     }
 
     size_t bufsize = strlen(BASEURL) + strlen("thread.php?id=") + 17;
+
     char buf[bufsize];
     snprintf(buf, bufsize, BASEURL "thread.php?id=%d", id);
+
     struct MemoryStruct memory = {malloc(1), 0};
 
     curl_easy_setopt(curl_handle, CURLOPT_URL, buf);
@@ -87,23 +85,27 @@ int save_thread(unsigned int id) {
 
     CURLcode response = curl_easy_perform(curl_handle);
     curl_easy_cleanup(curl_handle);
+    curl_global_cleanup();
 
     if (response != CURLE_OK) {
         fprintf(stderr, "curl_easy_perform() for %s failed: %s\n", buf, curl_easy_strerror(response));
         return 1;
     }
 
-    xmlDocPtr doc = htmlReadDoc((xmlChar*) memory.data, NULL, NULL,
-                                HTML_PARSE_NOBLANKS | HTML_PARSE_NOERROR | HTML_PARSE_NOWARNING);
+    xmlDoc* doc = htmlReadDoc((xmlChar*) memory.data, NULL, NULL,
+                              HTML_PARSE_NOBLANKS | HTML_PARSE_NOERROR | HTML_PARSE_NOWARNING);
+    xmlXPathContext* context = xmlXPathNewContext(doc);
+    xmlXPathRegisterNs(context, (xmlChar*) "html", (xmlChar*) "http://www.w3.org/1999/xhtml");
 
-    if (page_is_thread(doc)) {
-        process_attrs(doc, "//link", "href");
-        process_attrs(doc, "//script", "src");
-        process_attrs(doc, "//img", "src");
-        process_attrs(doc, "//video", "src");
+    if (page_is_thread(context)) {
+        process_attrs(context, "//link", "href");
+        process_attrs(context, "//script", "src");
+        process_attrs(context, "//img", "src");
+        process_attrs(context, "//video", "src");
 
         snprintf(buf, bufsize, "%d.html", id);
         FILE* file = fopen(buf, "w");
+
         fprintf(file, "%s\n", memory.data);
         fclose(file);
     } else {
@@ -112,7 +114,7 @@ int save_thread(unsigned int id) {
 
     free(memory.data);
     xmlFreeDoc(doc);
-    curl_global_cleanup();
+    xmlXPathFreeContext(context);
     return 0;
 }
 
@@ -151,8 +153,8 @@ void cd_flbdir(void) {
     int short_year = (tm->tm_year + 1900) % 2000;
 
     char dirname_buf[32];
-    snprintf(dirname_buf, 32, "flb_%02d.%02d.%02d_%d-%d", short_year, tm->tm_mon + 1,
-             tm->tm_mday, tm->tm_hour, tm->tm_min);
+    snprintf(dirname_buf, 32, "flb_%02d.%02d.%02d_%d-%d", short_year, tm->tm_mon + 1, tm->tm_mday,
+             tm->tm_hour, tm->tm_min);
 
     mkdir(dirname_buf, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
     chdir(dirname_buf);
