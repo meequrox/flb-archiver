@@ -1,121 +1,7 @@
-#include <curl/curl.h>
-#include <libxml2/libxml/HTMLparser.h>
-#include <libxml2/libxml/xmlsave.h>
-#include <libxml2/libxml/xpath.h>
-#include <libxml2/libxml/xpathInternals.h>
 #include <stdio.h>
-#include <string.h>
-#include <unistd.h>
 
+#include "download/thread.h"
 #include "filesystem/directories.h"
-#include "linkpool/linkpool.h"
-#include "memory/memory.h"
-
-#define FF_USERAGENT "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:99.0) Gecko/20100101 Firefox/99.0"
-#define BASEURL "https://flareboard.ru/"
-
-LinkPool* links = NULL;
-
-int save_url_contents(char* url, char* filename, int verbose);
-int download_links(LinkPool* pool, int verbose);
-
-int process_attrs(xmlXPathContext* context, const char* xpath_expr, const char* needed_attr) {
-    if (!xpath_expr || !needed_attr) {
-        return 1;
-    }
-
-    xmlXPathObject* result = xmlXPathEvalExpression((xmlChar*) xpath_expr, context);
-    xmlNodeSet* nodes = result->nodesetval;
-
-    for (int i = 0; i < nodes->nodeNr; ++i) {
-        xmlNode* node = nodes->nodeTab[i];
-
-        xmlChar* attr = xmlGetProp(node, (xmlChar*) needed_attr);
-
-        if (attr && !((char*) attr == strstr((char*) attr, "https://") ||
-                      (char*) attr == strstr((char*) attr, "http://"))) {
-            flb_mkdirs((char*) attr);
-
-            size_t url_bufsize = strlen(BASEURL) + strlen((char*) attr) + 1;
-
-            char url_buf[url_bufsize];
-            snprintf(url_buf, url_bufsize, "%s%s%c", BASEURL, attr, '\0');
-
-            links = linkpool_push_node(links, url_buf, (char*) attr);
-            xmlFree(attr);
-        }
-    }
-
-    xmlXPathFreeObject(result);
-    return 0;
-}
-
-int page_is_thread(xmlXPathContext* context) {
-    xmlXPathObject* result = xmlXPathEvalExpression((xmlChar*) "//div[@class='postTop']", context);
-    xmlNodeSet* nodes = result->nodesetval;
-    int nnodes = nodes->nodeNr;
-
-    xmlXPathFreeObject(result);
-    return nnodes > 0;
-}
-
-int save_thread(unsigned int id) {
-    curl_global_init(CURL_GLOBAL_ALL);
-    CURL* curl_handle = curl_easy_init();
-    if (!curl_handle) {
-        fprintf(stderr, "%s: can not handle curl\n", __func__);
-        curl_global_cleanup();
-        return 1;
-    }
-
-    size_t bufsize = strlen(BASEURL) + strlen("thread.php?id=") + 17;
-
-    char buf[bufsize];
-    snprintf(buf, bufsize, BASEURL "thread.php?id=%d", id);
-
-    struct MemoryStruct memory = {malloc(1), 0};
-
-    curl_easy_setopt(curl_handle, CURLOPT_URL, buf);
-    curl_easy_setopt(curl_handle, CURLOPT_FOLLOWLOCATION, 0);
-    curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, write_memory_callback);
-    curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void*) &memory);
-    curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, FF_USERAGENT);
-
-    CURLcode response = curl_easy_perform(curl_handle);
-    curl_easy_cleanup(curl_handle);
-    curl_global_cleanup();
-
-    if (response != CURLE_OK) {
-        fprintf(stderr, "curl_easy_perform() for %s failed: %s\n", buf, curl_easy_strerror(response));
-        return 1;
-    }
-
-    xmlDoc* doc = htmlReadDoc((xmlChar*) memory.data, NULL, NULL,
-                              HTML_PARSE_NOBLANKS | HTML_PARSE_NOERROR | HTML_PARSE_NOWARNING);
-    xmlXPathContext* context = xmlXPathNewContext(doc);
-    xmlXPathRegisterNs(context, (xmlChar*) "html", (xmlChar*) "http://www.w3.org/1999/xhtml");
-
-    if (page_is_thread(context)) {
-        process_attrs(context, "//link", "href");
-        process_attrs(context, "//script", "src");
-        process_attrs(context, "//img", "src");
-        process_attrs(context, "//video", "src");
-
-        snprintf(buf, bufsize, "%d.html", id);
-
-        xmlSaveCtxt* saveCtxt = xmlSaveToFilename(
-            buf, "UTF-8", XML_SAVE_FORMAT | XML_SAVE_NO_DECL | XML_SAVE_NO_EMPTY | XML_SAVE_AS_HTML);
-        xmlSaveDoc(saveCtxt, doc);
-        xmlSaveClose(saveCtxt);
-    } else {
-        fprintf(stderr, "%s: thread with id %d does not exist\n", __func__, id);
-    }
-
-    free(memory.data);
-    xmlFreeDoc(doc);
-    xmlXPathFreeContext(context);
-    return 0;
-}
 
 void usage(char** argv) {
     fprintf(stdout, "Usage: %s START_ID END_ID\n", argv[0]);
@@ -128,8 +14,8 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    int start = strtol(argv[1], NULL, 10);
-    int end = strtol(argv[2], NULL, 10);
+    const int start = strtol(argv[1], NULL, 10);
+    const int end = strtol(argv[2], NULL, 10);
 
     if (start < 1 || end < 1 || end < start) {
         fprintf(stderr, "Invalid ID range [%d, %d]\n", start, end);
@@ -137,77 +23,8 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    links = linkpool_create();
     flb_chdir_out();
+    flb_download_threads(start, end);
 
-    fprintf(stdout, "Download pages from %d to %d\n", start, end);
-    for (int id = start; id <= end; ++id) {
-        save_thread(id);
-
-        const int usecs = 300.0 * 1000;
-        usleep(usecs);
-    }
-
-    fprintf(stdout, "All pages saved! Start downloading extra links (img, video)\n");
-    download_links(links, 0);
-
-    linkpool_free(links);
     return EXIT_SUCCESS;
-}
-
-int save_url_contents(char* url, char* filename, int verbose) {
-    if (!url || !filename) {
-        return 1;
-    }
-
-    curl_global_init(CURL_GLOBAL_ALL);
-    CURL* curl_handle = curl_easy_init();
-    if (!curl_handle) {
-        fprintf(stderr, "%s: can not handle curl\n", __func__);
-        curl_global_cleanup();
-        return 1;
-    }
-
-    FILE* file = fopen(filename, "w");
-    if (!file) {
-        fprintf(stderr, "%s: can't open %s\n", __func__, filename);
-        return 1;
-    }
-
-    curl_easy_setopt(curl_handle, CURLOPT_URL, url);
-    curl_easy_setopt(curl_handle, CURLOPT_FOLLOWLOCATION, 1);
-    curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, write_file_callback);
-    curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, file);
-    curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, FF_USERAGENT);
-
-    CURLcode response = curl_easy_perform(curl_handle);
-    curl_easy_cleanup(curl_handle);
-
-    if (response != CURLE_OK) {
-        fprintf(stderr, "curl_easy_perform() for %s failed: %s\n", url, curl_easy_strerror(response));
-        return 1;
-    }
-
-    if (verbose) {
-        fprintf(stdout, "%s -> %s\n", url, filename);
-    }
-
-    fclose(file);
-    curl_global_cleanup();
-    return 0;
-}
-
-int download_links(LinkPool* pool, int verbose) {
-    if (!pool) {
-        return 1;
-    }
-
-    LinkNode* cur = pool->head;
-
-    while (cur) {
-        save_url_contents(cur->url, cur->filename, verbose);
-        cur = cur->next;
-    }
-
-    return 0;
 }

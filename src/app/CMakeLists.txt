@@ -11,10 +11,8 @@ find_package(LibXml2 REQUIRED)
 find_package(CURL REQUIRED)
 
 target_link_libraries(${target_name} PRIVATE
-    linkpool
-    memory
-    LibXml2::LibXml2
-    ${CURL_LIBRARIES}
+    filesystem
+    download
 )
 
 set_target_properties(${target_name} PROPERTIES
