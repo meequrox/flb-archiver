@@ -1,5 +1,6 @@
 #include "filesystem/directories.h"
 
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -27,7 +28,7 @@ int flb_mkdirs(char* path) {
     while (slash_pos) {
         *slash_pos = '\0';
 
-        if (flb_mkdir(path) != 0) {
+        if (flb_mkdir(path) != 0 && errno != EEXIST) {
             perror(path);
             return 1;
         }
