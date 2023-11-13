@@ -5,7 +5,6 @@
 #include <libxml2/libxml/xpathInternals.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <unistd.h>
 
 #include "filesystem/directories.h"
@@ -17,7 +16,6 @@
 
 LinkPool* links = NULL;
 
-void cd_flbdir(void);
 int save_url_contents(char* url, char* filename, int verbose);
 int download_links(LinkPool* pool, int verbose);
 
@@ -140,7 +138,7 @@ int main(int argc, char** argv) {
     }
 
     links = linkpool_create();
-    cd_flbdir();
+    flb_chdir_out();
 
     fprintf(stdout, "Download pages from %d to %d\n", start, end);
     for (int id = start; id <= end; ++id) {
@@ -155,22 +153,6 @@ int main(int argc, char** argv) {
 
     linkpool_free(links);
     return EXIT_SUCCESS;
-}
-
-void cd_flbdir(void) {
-    time_t t = time(NULL);
-    struct tm* tm = localtime(&t);
-
-    int short_year = (tm->tm_year + 1900) % 2000;
-
-    char dirname_buf[32];
-    snprintf(dirname_buf, 32, "flb_%02d.%02d.%02d_%02d-%02d", short_year, tm->tm_mon + 1, tm->tm_mday,
-             tm->tm_hour, tm->tm_min);
-
-    mkdir(dirname_buf, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
-    chdir(dirname_buf);
-
-    fprintf(stdout, "Working directory: %s\n", dirname_buf);
 }
 
 int save_url_contents(char* url, char* filename, int verbose) {
