@@ -27,38 +27,38 @@ int flb_is_thread(xmlXPathContext* context) {
     return nodes > 0;
 }
 
- static int download_resouce(CURL* curl_handle, const char* url, const char* filename) {
-     FILE* file = fopen(filename, "w");
-     if (!file) {
-         perror(filename);
-         return 1;
-     }
+static int download_resouce(CURL* curl_handle, const char* url, const char* filename) {
+    FILE* file = fopen(filename, "w");
+    if (!file) {
+        perror(filename);
+        return 1;
+    }
 
-     curl_easy_setopt(curl_handle, CURLOPT_URL, url);
-     curl_easy_setopt(curl_handle, CURLOPT_FOLLOWLOCATION, 1);
-     curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, flb_write_file_callback);
-     curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, file);
+    curl_easy_setopt(curl_handle, CURLOPT_URL, url);
+    curl_easy_setopt(curl_handle, CURLOPT_FOLLOWLOCATION, 1);
+    curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, flb_write_file_callback);
+    curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, file);
 
-     CURLcode response = curl_easy_perform(curl_handle);
+    CURLcode response = curl_easy_perform(curl_handle);
 
-     if (response != CURLE_OK) {
-         fprintf(stderr, "Can not fetch %s: %s\n", url, curl_easy_strerror(response));
-         return 1;
-     }
+    if (response != CURLE_OK) {
+        fprintf(stderr, "Can not fetch %s: %s\n", url, curl_easy_strerror(response));
+        return 1;
+    }
 
-     fclose(file);
-     return 0;
- }
+    fclose(file);
+    return 0;
+}
 
 static int download_resources(CURL* curl_handle, cp_rbnode* root) {
     if (!curl_handle || !root) {
         return 0;
     }
 
-     const char* url = (char*) root->key;
-     const char* filename = (char*) root->value;
+    const char* url = (char*) root->key;
+    const char* filename = (char*) root->value;
 
-     download_resouce(curl_handle, url, filename);
+    download_resouce(curl_handle, url, filename);
 
     download_resources(curl_handle, root->left);
     download_resources(curl_handle, root->right);
@@ -83,7 +83,6 @@ static int parse_resources(cp_rbtree* tree, xmlXPathContext* context, const char
         xmlChar* attr = xmlGetProp(nodes->nodeTab[i], find_attr);
         char* attr_str = (char*) attr;
 
-
         if (attr && is_local_path(attr_str)) {
             if (access(attr_str, F_OK) != 0) {
                 flb_mkdirs(attr_str);
@@ -94,7 +93,8 @@ static int parse_resources(cp_rbtree* tree, xmlXPathContext* context, const char
                 char resource_url[resource_url_len];
                 snprintf(resource_url, resource_url_len, "%s%s", kBaseUrl, attr);
 
-                cp_rbtree_insert(tree, strndup(resource_url, resource_url_len), strndup(attr_str, attr_str_len));
+                cp_rbtree_insert(tree, strndup(resource_url, resource_url_len),
+                                 strndup(attr_str, attr_str_len));
             }
 
             xmlFree(attr);
@@ -151,8 +151,7 @@ int flb_download_thread(CURL* curl_handle, size_t id) {
     cp_rbtree* resources_tree = NULL;
 
     if (flb_is_thread(context)) {
-        resources_tree =
-            cp_rbtree_create(cp_tree_comparator);
+        resources_tree = cp_rbtree_create(cp_tree_comparator);
 
         if (!resources_tree) {
             fprintf(stderr, "Can not create resources tree\n");
