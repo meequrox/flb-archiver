@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "filesystem/directories.h"
 #include "linkpool/linkpool.h"
 #include "memory/memory.h"
 
@@ -17,10 +18,8 @@
 LinkPool* links = NULL;
 
 void cd_flbdir(void);
-int str_find_nth(const char* str, char symbol, int n);
 int save_url_contents(char* url, char* filename, int verbose);
 int download_links(LinkPool* pool, int verbose);
-int create_subdirs(const char* path);
 
 int process_attrs(xmlXPathContext* context, const char* xpath_expr, const char* needed_attr) {
     if (!xpath_expr || !needed_attr) {
@@ -37,7 +36,7 @@ int process_attrs(xmlXPathContext* context, const char* xpath_expr, const char* 
 
         if (attr && !((char*) attr == strstr((char*) attr, "https://") ||
                       (char*) attr == strstr((char*) attr, "http://"))) {
-            create_subdirs((char*) attr);
+            flb_mkdirs((char*) attr);
 
             size_t url_bufsize = strlen(BASEURL) + strlen((char*) attr) + 1;
 
@@ -174,25 +173,6 @@ void cd_flbdir(void) {
     fprintf(stdout, "Working directory: %s\n", dirname_buf);
 }
 
-int str_find_nth(const char* str, char symbol, int n) {
-    if (!str) {
-        return -1;
-    }
-
-    int count = 0;
-    int i = 0;
-    while (str[i]) {
-        if (str[i] == symbol) {
-            ++count;
-        }
-        if (count == n) {
-            return i;
-        }
-        ++i;
-    }
-    return -1;
-}
-
 int save_url_contents(char* url, char* filename, int verbose) {
     if (!url || !filename) {
         return 1;
@@ -245,34 +225,6 @@ int download_links(LinkPool* pool, int verbose) {
     while (cur) {
         save_url_contents(cur->url, cur->filename, verbose);
         cur = cur->next;
-    }
-
-    return 0;
-}
-
-int create_subdirs(const char* path) {
-    if (!path) {
-        return 1;
-    }
-
-    size_t bufsize = strlen(path) + 1;
-    char buf[bufsize];
-    char* buf_ptr = buf;
-    strncpy(buf_ptr, path, bufsize);
-
-    int n = 1;
-    int slash_pos = str_find_nth(buf_ptr, '/', n);
-    while (slash_pos >= 0) {
-        buf_ptr[slash_pos] = '\0';
-        mkdir(buf_ptr, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
-
-#if defined(_WIN32)
-        buf_ptr[slash_pos] = '\\';
-#else
-        buf_ptr[slash_pos] = '/';
-#endif
-
-        slash_pos = str_find_nth(buf_ptr, '/', ++n);
     }
 
     return 0;
