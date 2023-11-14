@@ -6,7 +6,8 @@
 
 typedef struct flb_memstruct {
     char* data;
-    size_t size;
+    size_t data_len;
+    size_t allocated_bytes;
 } flb_memstruct_t;
 
 size_t flb_write_memory_callback(const void* contents, size_t size, size_t nmemb,

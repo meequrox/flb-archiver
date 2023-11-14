@@ -127,7 +127,8 @@ int flb_download_thread(CURL* curl_handle, size_t id) {
     char thread_url[bufsize];
     snprintf(thread_url, bufsize, "%s%s%zu", kBaseUrl, query_base, id);
 
-    flb_memstruct_t memory = {(char*) malloc(1), 0};
+    const size_t initial_bufsize = 32 * 1024 + 1;
+    flb_memstruct_t memory = {(char*) malloc(initial_bufsize), 0, initial_bufsize};
 
     curl_easy_setopt(curl_handle, CURLOPT_URL, thread_url);
     curl_easy_setopt(curl_handle, CURLOPT_FOLLOWLOCATION, 0);
