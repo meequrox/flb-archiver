@@ -9,23 +9,17 @@ add_library(${target_name} STATIC
     thread.c
 )
 
-set(LIBCPROPS_INCLUDE_DIR ${CMAKE_BINARY_DIR}/external/libcprops/build/include)
-set(LIBCPROPS_LIBRARY_DIR ${CMAKE_BINARY_DIR}/external/libcprops/build/lib)
-
 target_include_directories(${target_name} PUBLIC
     ${PROJECT_SOURCE_DIR}/include
-    ${LIBCPROPS_INCLUDE_DIR}
 )
 
 find_package(LibXml2 REQUIRED)
 find_package(CURL REQUIRED)
 
-target_link_directories(${target_name} PUBLIC ${LIBCPROPS_LIBRARY_DIR})
-
 target_link_libraries(${target_name} PUBLIC
     memory
     filesystem
-    cprops
+    data_structures
     LibXml2::LibXml2
     ${CURL_LIBRARIES}
 )

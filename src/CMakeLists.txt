@@ -1,3 +1,4 @@
+add_subdirectory(data_structures)
 add_subdirectory(filesystem)
 add_subdirectory(download)
 add_subdirectory(memory)

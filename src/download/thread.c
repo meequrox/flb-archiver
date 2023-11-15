@@ -1,12 +1,12 @@
 #include "download/thread.h"
 
-#include <cprops/rb.h>
 #include <libxml/HTMLparser.h>
 #include <libxml/xmlsave.h>
 #include <libxml2/libxml/xpathInternals.h>
 #include <string.h>
 #include <unistd.h>
 
+#include "data_structures/rbtree.h"
 #include "download/comments.h"
 #include "filesystem/directories.h"
 #include "memory/memory.h"
@@ -27,7 +27,7 @@ int flb_is_thread(xmlXPathContext* context) {
     return nodes > 0;
 }
 
-static int download_resouce(CURL* curl_handle, const char* url, const char* filename) {
+static int download_resource(CURL* curl_handle, const char* url, const char* filename) {
     FILE* file = fopen(filename, "w");
     if (!file) {
         perror(filename);
@@ -50,18 +50,18 @@ static int download_resouce(CURL* curl_handle, const char* url, const char* file
     return 0;
 }
 
-static int download_resources(CURL* curl_handle, cp_rbnode* root) {
-    if (!curl_handle || !root) {
+static int download_resources(CURL* curl_handle, flb_rbtree* tree, flb_rbnode* root) {
+    if (!curl_handle || !root || root == tree->leaf) {
         return 0;
     }
 
-    const char* url = (char*) root->key;
-    const char* filename = (char*) root->value;
+    const char* url = root->key;
+    const char* filename = root->value;
 
-    download_resouce(curl_handle, url, filename);
+    download_resource(curl_handle, url, filename);
 
-    download_resources(curl_handle, root->left);
-    download_resources(curl_handle, root->right);
+    download_resources(curl_handle, tree, root->left);
+    download_resources(curl_handle, tree, root->right);
 
     return 0;
 }
@@ -70,7 +70,7 @@ static int is_local_path(const char* path) {
     return path != strstr(path, "https://") && path != strstr(path, "http://");
 }
 
-static int parse_resources(cp_rbtree* tree, xmlXPathContext* context, const char* xpath_expr,
+static int parse_resources(flb_rbtree* tree, xmlXPathContext* context, const char* xpath_expr,
                            const xmlChar* find_attr) {
     if (!tree || !xpath_expr || !find_attr) {
         return 1;
@@ -87,14 +87,12 @@ static int parse_resources(cp_rbtree* tree, xmlXPathContext* context, const char
             if (access(attr_str, F_OK) != 0) {
                 flb_mkdirs(attr_str);
 
-                const size_t attr_str_len = strlen(attr_str);
-                const size_t resource_url_len = kBaseUrlLen + attr_str_len + 1;
+                const size_t resource_url_len = kBaseUrlLen + strlen(attr_str) + 1;
 
                 char resource_url[resource_url_len];
                 snprintf(resource_url, resource_url_len, "%s%s", kBaseUrl, attr);
 
-                cp_rbtree_insert(tree, strndup(resource_url, resource_url_len),
-                                 strndup(attr_str, attr_str_len));
+                flb_rbtree_insert(tree, resource_url, attr_str);
             }
 
             xmlFree(attr);
@@ -106,15 +104,15 @@ static int parse_resources(cp_rbtree* tree, xmlXPathContext* context, const char
     return 0;
 }
 
-static int cp_tree_comparator(void* a, void* b) {
-    return strcmp((const char*) a, (const char*) b);
-}
-
-static void download_thread_cleanup(char* data, xmlDoc* doc, xmlXPathContext* context, cp_rbtree* tree) {
+static void download_thread_cleanup(char* data, xmlDoc* doc, xmlXPathContext* context,
+                                    flb_rbtree* tree) {
     free(data);
     xmlFreeDoc(doc);
     xmlXPathFreeContext(context);
-    cp_rbtree_destroy_custom(tree, cp_free, cp_free);
+
+    if (tree) {
+        flb_rbtree_free(tree, tree->root);
+    }
 }
 
 int flb_download_thread(CURL* curl_handle, size_t id) {
@@ -149,14 +147,15 @@ int flb_download_thread(CURL* curl_handle, size_t id) {
     xmlXPathContext* context = xmlXPathNewContext(doc);
     xmlXPathRegisterNs(context, (xmlChar*) "html", (xmlChar*) "http://www.w3.org/1999/xhtml");
 
-    cp_rbtree* resources_tree = NULL;
+    flb_rbtree* resources_tree = NULL;
 
     if (flb_is_thread(context)) {
-        resources_tree = cp_rbtree_create(cp_tree_comparator);
+        resources_tree = flb_rbtree_create();
 
         if (!resources_tree) {
             fprintf(stderr, "Can not create resources tree\n");
             download_thread_cleanup(memory.data, doc, context, NULL);
+            return 1;
         }
 
         parse_resources(resources_tree, context, "//link", (xmlChar*) "href");
@@ -164,8 +163,9 @@ int flb_download_thread(CURL* curl_handle, size_t id) {
         parse_resources(resources_tree, context, "//img", (xmlChar*) "src");
         parse_resources(resources_tree, context, "//video", (xmlChar*) "src");
 
-        if (resources_tree && cp_rbtree_count(resources_tree) > 0) {
-            download_resources(curl_handle, resources_tree->root);
+        if (resources_tree && resources_tree->root) {
+            // TODO(3): Implement universal DFS flb_rbtree_foreach(func, tree, root) function
+            download_resources(curl_handle, resources_tree, resources_tree->root);
         }
 
         const char extension[] = ".html";
