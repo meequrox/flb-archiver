@@ -24,6 +24,6 @@ flb_rbnode* flb_rbtree_insert(flb_rbtree* tree, const char* key, const char* val
 flb_rbnode* flb_rbtree_lookup(const flb_rbtree* tree, const char* key);
 flb_rbnode* flb_rbtree_delete(flb_rbtree* tree, const char* key);
 
-void flb_rbtree_free(const flb_rbtree* tree, flb_rbnode* root);
+void flb_rbtree_free(flb_rbtree* tree);
 
 #endif  // FLB_ARCHIVER_RBTREE_H

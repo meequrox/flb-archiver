@@ -381,13 +381,13 @@ flb_rbnode* flb_rbtree_delete(flb_rbtree* tree, const char* key) {
     return new_node;
 }
 
-void flb_rbtree_free(const flb_rbtree* tree, flb_rbnode* root) {
-    if (!tree || !root || root == tree->leaf) {
+static void rbtree_free_nodes(const flb_rbtree* tree, flb_rbnode* root) {
+    if (!root || root == tree->leaf) {
         return;
     }
 
-    flb_rbtree_free(tree, root->left);
-    flb_rbtree_free(tree, root->right);
+    rbtree_free_nodes(tree, root->left);
+    rbtree_free_nodes(tree, root->right);
 
     free(root->key);
     free(root->value);
@@ -399,4 +399,26 @@ void flb_rbtree_free(const flb_rbtree* tree, flb_rbnode* root) {
     root->left = NULL;
     root->right = NULL;
     free(root);
+}
+
+void flb_rbtree_free(flb_rbtree* tree) {
+    if (!tree) {
+        return;
+    }
+
+    int is_root_leaf = 0;
+
+    if (tree->root) {
+        is_root_leaf = tree->root == tree->leaf;
+
+        rbtree_free_nodes(tree, tree->root);
+        tree->root = NULL;
+    }
+
+    if (!is_root_leaf) {
+        free(tree->leaf);
+        tree->leaf = NULL;
+    }
+
+    free(tree);
 }

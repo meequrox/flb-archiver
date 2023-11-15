@@ -109,10 +109,7 @@ static void download_thread_cleanup(char* data, xmlDoc* doc, xmlXPathContext* co
     free(data);
     xmlFreeDoc(doc);
     xmlXPathFreeContext(context);
-
-    if (tree) {
-        flb_rbtree_free(tree, tree->root);
-    }
+    flb_rbtree_free(tree);
 }
 
 int flb_download_thread(CURL* curl_handle, size_t id) {
