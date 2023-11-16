@@ -135,20 +135,13 @@ static flb_rbnode* rbtree_add_fixup(flb_rbtree* tree, flb_rbnode* node) {
 
 static flb_rbnode* rbtree_create_node(const flb_rbtree* tree, const char* key, const char* value) {
     flb_rbnode* node = malloc(sizeof(flb_rbnode));
-    if (!node) {
-        return NULL;
-    }
-
     char* key_copy = strdup(key);
-    if (!key_copy) {
-        free(node);
-        return NULL;
-    }
-
     char* value_copy = strdup(value);
-    if (!value_copy) {
+
+    if (!node || !key_copy || !value_copy) {
         free(node);
         free(key_copy);
+        free(value_copy);
         return NULL;
     }
 
@@ -230,11 +223,11 @@ flb_rbnode* flb_rbtree_lookup(const flb_rbtree* tree, const char* key) {
 }
 
 static void rbtree_delete_fixup(flb_rbtree* tree, flb_rbnode* node) {
-    flb_rbnode* tmp_node = NULL;
-
     if (node == tree->leaf) {
         return;
     }
+
+    flb_rbnode* tmp_node = NULL;
 
     while (node != tree->root && node->color == FLB_BLACK) {
         if (node == node->parent->left) {
@@ -295,29 +288,15 @@ static void rbtree_delete_fixup(flb_rbtree* tree, flb_rbnode* node) {
 }
 
 static void rbtree_transplant(flb_rbtree* tree, flb_rbnode* node, flb_rbnode* new_node) {
-    // Функция заменяет узел node вершиной new_node
-
     if (!node->parent || node->parent == tree->leaf) {
-        // У заменяемого узла нет родителя
-        // Делаем вершину корнем
-
         tree->root = new_node;
     } else if (node == node->parent->left) {
-        // Заменяемый узел - левый дочерний для родителя
-        // Делаем вершину левым дочерним для родителя
-
         node->parent->left = new_node;
     } else {
-        // Заменяемый узел - правый дочерний для родителя
-        // Делаем вершину правым дочерним для родителя
-
         node->parent->right = new_node;
     }
 
     if (new_node != tree->leaf) {
-        /* Если заменяющая вершина - не лист,
-         * задаём ей родителя */
-
         new_node->parent = node->parent;
     }
 }
