@@ -11,17 +11,12 @@ Checks: >
   -modernize-use-trailing-return-type,
   -readability-identifier-length,
   -readability-magic-numbers,
-  -bugprone-exception-escape,
   -*-easily-swappable-parameters,
-  -*-convert-member-functions-to-static,
   -readability-implicit-bool-conversion,
   -*-narrowing-conversions,
-  -*-non-private-member-variables-in-classes,
-  -*-avoid-const-or-ref-data-members,
-  -*-build-using-namespace,
   -cert-err33-c
 WarningsAsErrors: '*'
-HeaderFilterRegex: '.*/(linkpool|memory|app)/'
+HeaderFilterRegex: '.*/(data_structures|download|filesystem|logger|memory|app)/'
 AnalyzeTemporaryDtors: false
 FormatStyle: file
 ...
