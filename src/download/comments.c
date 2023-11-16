@@ -1,5 +1,7 @@
 #include "download/comments.h"
 
+#include <libxml/HTMLparser.h>
+#include <libxml/xpathInternals.h>
 #include <string.h>
 
 #include "data_structures/linked_list.h"
@@ -70,9 +72,7 @@ static flb_list_node* get_comments_ids(xmlXPathContext* context, size_t* counter
     xmlXPathObject* result = xmlXPathEvalExpression(expr, context);
     xmlNodeSet* nodes = result->nodesetval;
 
-    if (nodes->nodeNr != 1) {
-        // nodeNr = 0 => not found
-        // nodeNr > 1 is not possible
+    if (nodes->nodeNr < 1) {
         return NULL;
     }
 
@@ -84,15 +84,6 @@ static flb_list_node* get_comments_ids(xmlXPathContext* context, size_t* counter
 
     xmlXPathFreeObject(result);
     return list;
-}
-
-void TMP_flb_list_print(flb_list_node* list) {
-    while (list) {
-        printf("%s -> ", list->value);
-        list = list->next;
-    }
-
-    printf("NULL\n");
 }
 
 void strncpy_no_trunc(char* dest, const char* src, size_t n) {
@@ -138,7 +129,62 @@ static void concat_fields(flb_list_node* list, char* dest, const size_t dest_siz
     }
 }
 
-int fetch_comments(CURL* curl_handle, xmlXPathContext* context) {
+static void append_nodes_to_div(xmlNode* div_node, xmlNodeSet* nodes) {
+    xmlNode* last_child = div_node->last;
+
+    for (int i = 0; i < nodes->nodeNr; i++) {
+        xmlNode* node = nodes->nodeTab[i];
+
+        xmlUnlinkNode(node);
+        xmlAddNextSibling(last_child, node);
+        last_child = node;
+    }
+}
+
+static void insert_comments(char* html, xmlXPathContext* thread_context) {
+    const int parse_options = HTML_PARSE_NOBLANKS | HTML_PARSE_NOERROR | HTML_PARSE_NOWARNING;
+    xmlDoc* comments_doc = htmlReadDoc((xmlChar*) html, NULL, "UTF-8", parse_options);
+    xmlXPathContext* comments_context = xmlXPathNewContext(comments_doc);
+
+    if (!comments_doc || !comments_context) {
+        FLB_LOG_ERROR("Can't read HTML comments data or create XPath context");
+        xmlFreeDoc(comments_doc);
+        xmlXPathFreeContext(comments_context);
+        return;
+    }
+
+    xmlXPathRegisterNs(comments_context, (xmlChar*) "html", (xmlChar*) "http://www.w3.org/1999/xhtml");
+
+    xmlXPathObject* comments_result =
+        xmlXPathEvalExpression((xmlChar*) "//div[@class='commentTop']", comments_context);
+    xmlXPathObject* thread_result =
+        xmlXPathEvalExpression((xmlChar*) "//div[@class='comments']", thread_context);
+
+    if (!comments_result || !thread_result) {
+        FLB_LOG_ERROR("Can't eval XPath to parse comments HTML");
+        xmlFreeDoc(comments_doc);
+        xmlXPathFreeContext(comments_context);
+        xmlXPathFreeObject(comments_result);
+        xmlXPathFreeObject(thread_result);
+        return;
+    }
+
+    xmlNodeSet* comments_nodes = comments_result->nodesetval;
+    xmlNodeSet* thread_nodes = thread_result->nodesetval;
+
+    if (thread_nodes->nodeNr > 0) {
+        append_nodes_to_div(thread_nodes->nodeTab[0], comments_nodes);
+
+        FLB_LOG_INFO("Inserted %d comment nodes", comments_nodes->nodeNr);
+    }
+
+    xmlFreeDoc(comments_doc);
+    xmlXPathFreeContext(comments_context);
+    xmlXPathFreeObject(comments_result);
+    xmlXPathFreeObject(thread_result);
+}
+
+int include_comments(CURL* curl_handle, xmlXPathContext* context) {
     size_t counter = 0;
     flb_list_node* ids_list = get_comments_ids(context, &counter);
 
@@ -189,10 +235,8 @@ int fetch_comments(CURL* curl_handle, xmlXPathContext* context) {
 
     FLB_LOG_INFO("Comments fetched!");
 
-    // TODO(3): insert comments HTML into context doc
-    FLB_LOG_INFO("Comments HTML: '%s'", memory.data);
+    insert_comments(memory.data, context);
 
-    // TODO(4): return 0
     free(memory.data);
-    return 1;
+    return 0;
 }

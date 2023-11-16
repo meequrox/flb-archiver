@@ -99,7 +99,7 @@ static int is_local_path(const char* path) {
 }
 
 static int parse_resources(flb_rbtree* tree, xmlXPathContext* context, const char* xpath_expr,
-                           const xmlChar* find_attr) {
+                           const char* find_attr) {
     if (!tree || !xpath_expr || !find_attr) {
         return 1;
     }
@@ -108,7 +108,7 @@ static int parse_resources(flb_rbtree* tree, xmlXPathContext* context, const cha
     xmlNodeSet* nodes = result->nodesetval;
 
     for (int i = 0; i < nodes->nodeNr; ++i) {
-        xmlChar* attr = xmlGetProp(nodes->nodeTab[i], find_attr);
+        xmlChar* attr = xmlGetProp(nodes->nodeTab[i], (xmlChar*) find_attr);
         char* attr_str = (char*) attr;
 
         if (attr && is_local_path(attr_str)) {
@@ -192,19 +192,17 @@ static int download_thread_page(CURL* curl_handle, size_t id) {
 
         FLB_LOG_INFO_LB("Processing thread %zu (url '%s')", id, thread_url);
 
-        // TODO(1): fetch thread comments
-        fetch_comments(curl_handle, context);
+        include_comments(curl_handle, context);
+        curl_easy_reset(curl_handle);
+        curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, kFirefoxUserAgent);
 
         fix_timestamps(context);
         FLB_LOG_INFO("Fixed timestamps in thread %zu", id);
 
-        parse_resources(resources_tree, context, "//link", (xmlChar*) "href");
-        parse_resources(resources_tree, context, "//script", (xmlChar*) "src");
-        parse_resources(resources_tree, context, "//img", (xmlChar*) "src");
-        parse_resources(resources_tree, context, "//video", (xmlChar*) "src");
-
-        // TODO(99): REMOVE
-        return 1;
+        parse_resources(resources_tree, context, "//link", "href");
+        parse_resources(resources_tree, context, "//script", "src");
+        parse_resources(resources_tree, context, "//img", "src");
+        parse_resources(resources_tree, context, "//video", "src");
 
         if (resources_tree->root) {
             FLB_LOG_INFO("Thread %d contains downloadable resources", id);
