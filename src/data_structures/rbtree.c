@@ -18,13 +18,13 @@ flb_rbtree* flb_rbtree_create(void) {
 
     tree->root = NULL;
 
-    tree->leaf->key = NULL;
-    tree->leaf->value = 0;
     tree->leaf->parent = NULL;
     tree->leaf->left = NULL;
     tree->leaf->right = NULL;
-
     tree->leaf->color = FLB_BLACK;
+
+    tree->leaf->key = NULL;
+    tree->leaf->value = NULL;
 
     return tree;
 }
@@ -139,13 +139,13 @@ static flb_rbnode* rbtree_create_node(const flb_rbtree* tree, const char* key, c
         return NULL;
     }
 
-    char* key_copy = strndup(key, strlen(key));
+    char* key_copy = strdup(key);
     if (!key_copy) {
         free(node);
         return NULL;
     }
 
-    char* value_copy = strndup(value, strlen(value));
+    char* value_copy = strdup(value);
     if (!value_copy) {
         free(node);
         free(key_copy);
@@ -191,7 +191,6 @@ flb_rbnode* flb_rbtree_insert(flb_rbtree* tree, const char* key, const char* val
 
     if (!tree->root) {
         tree->root = node;
-
         node->color = FLB_BLACK;
     } else {
         if (strcmp(key, parent->key) < 0) {
@@ -327,6 +326,7 @@ flb_rbnode* flb_rbtree_delete(flb_rbtree* tree, const char* key) {
     if (!tree || !tree->root) {
         return NULL;
     }
+
     if (!key) {
         return tree->root;
     }
@@ -406,19 +406,13 @@ void flb_rbtree_free(flb_rbtree* tree) {
         return;
     }
 
-    int is_root_leaf = 0;
-
     if (tree->root) {
-        is_root_leaf = tree->root == tree->leaf;
-
         rbtree_free_nodes(tree, tree->root);
         tree->root = NULL;
     }
 
-    if (!is_root_leaf) {
-        free(tree->leaf);
-        tree->leaf = NULL;
-    }
+    free(tree->leaf);
+    tree->leaf = NULL;
 
     free(tree);
 }
