@@ -1,8 +1,11 @@
 #ifndef FLB_ARCHIVER_LINKED_LIST_H
 #define FLB_ARCHIVER_LINKED_LIST_H
 
+#include <stddef.h>
+
 typedef struct flb_list_node_t {
     char* value;
+    size_t value_len;
     struct flb_list_node_t* next;
 } flb_list_node;
 

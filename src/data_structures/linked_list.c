@@ -14,7 +14,16 @@ flb_list_node* flb_list_create_node(const char* value) {
         return NULL;
     }
 
-    node->value = strdup(value);
+    const size_t value_len = strlen(value);
+    char* value_copy = strndup(value, value_len);
+
+    if (!value_copy) {
+        free(node);
+        return NULL;
+    }
+
+    node->value = value_copy;
+    node->value_len = value_len;
     node->next = NULL;
 
     return node;
@@ -54,6 +63,7 @@ flb_list_node* flb_list_delete(flb_list_node* list, const char* value) {
 
             free(cur->value);
             cur->value = NULL;
+            cur->value_len = 0;
             free(cur);
 
             return list;
@@ -74,6 +84,7 @@ void flb_list_free(flb_list_node* list) {
 
         free(prev->value);
         prev->value = NULL;
+        prev->value_len = 0;
         free(prev);
     }
 }

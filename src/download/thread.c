@@ -151,7 +151,7 @@ static int download_thread_page(CURL* curl_handle, size_t id) {
     char thread_url[bufsize];
     snprintf(thread_url, bufsize, "%s%s%zu", kBaseUrl, query_base, id);
 
-    const size_t initial_bufsize = 32 * 1024 + 1;
+    const size_t initial_bufsize = 256 * 1024 + 1;
     flb_memstruct_t memory = {(char*) malloc(initial_bufsize), 0, initial_bufsize};
 
     curl_easy_setopt(curl_handle, CURLOPT_URL, thread_url);
@@ -202,6 +202,9 @@ static int download_thread_page(CURL* curl_handle, size_t id) {
         parse_resources(resources_tree, context, "//script", (xmlChar*) "src");
         parse_resources(resources_tree, context, "//img", (xmlChar*) "src");
         parse_resources(resources_tree, context, "//video", (xmlChar*) "src");
+
+        // TODO(99): REMOVE
+        return 1;
 
         if (resources_tree->root) {
             FLB_LOG_INFO("Thread %d contains downloadable resources", id);
