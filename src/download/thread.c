@@ -4,6 +4,7 @@
 #include <libxml/HTMLparser.h>
 #include <libxml/xmlsave.h>
 #include <libxml2/libxml/xpathInternals.h>
+#include <locale.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -19,14 +20,57 @@ const size_t kBaseUrlLen = sizeof(kBaseUrl) / sizeof(*kBaseUrl);
 const char kFirefoxUserAgent[] =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:99.0) Gecko/20100101 Firefox/99.0";
 
-int flb_is_thread(xmlXPathContext* context) {
-    const xmlChar* expr = (xmlChar*) "//div[@class='postTop']";
+static int page_is_thread(xmlXPathContext* context) {
+    if (!context) {
+        return 0;
+    }
 
+    const xmlChar* expr = (xmlChar*) "//div[@class='postTop']";
     xmlXPathObject* result = xmlXPathEvalExpression(expr, context);
     const int nodes = result->nodesetval->nodeNr;
 
     xmlXPathFreeObject(result);
     return nodes > 0;
+}
+
+static void convert_timestamp(const char* timestamp, char* dest, size_t dest_size) {
+    if (!timestamp || !dest) {
+        return;
+    }
+
+    time_t raw_time = (time_t) strtoull(timestamp, NULL, 10);
+    struct tm* time_info = gmtime(&raw_time);
+
+    strftime(dest, dest_size, "%e %b %Y %H:%M", time_info);
+}
+
+static int fix_timestamps(xmlXPathContext* context) {
+    if (!context) {
+        return 1;
+    }
+
+    const xmlChar* expr = (xmlChar*) "//div[@class='time']";
+    xmlXPathObject* result = xmlXPathEvalExpression(expr, context);
+    xmlNodeSet* nodes = result->nodesetval;
+
+    for (int i = 0; i < nodes->nodeNr; ++i) {
+        xmlNode* node = nodes->nodeTab[i];
+        char* timestamp_str = (char*) xmlNodeGetContent(node);
+
+        if (timestamp_str) {
+            const size_t bufsize = 32;
+            char buf[bufsize];
+
+            convert_timestamp(timestamp_str, buf, bufsize);
+            char* buf_ptr = buf[0] == ' ' ? buf + 1 : buf;
+
+            xmlNodeSetContent(node, (xmlChar*) buf_ptr);
+            xmlFree(timestamp_str);
+        }
+    }
+
+    xmlXPathFreeObject(result);
+    return 0;
 }
 
 static int download_resource(CURL* curl_handle, const char* url, const char* filename) {
@@ -101,7 +145,7 @@ static void download_thread_cleanup(char* data, xmlDoc* doc, xmlXPathContext* co
     flb_rbtree_free(tree);
 }
 
-int flb_download_thread(CURL* curl_handle, size_t id) {
+static int download_thread_page(CURL* curl_handle, size_t id) {
     const char query_base[] = "thread.php?id=";
     const size_t query_base_len = sizeof(query_base) / sizeof(*query_base);
 
@@ -135,7 +179,7 @@ int flb_download_thread(CURL* curl_handle, size_t id) {
 
     flb_rbtree* resources_tree = NULL;
 
-    if (flb_is_thread(context)) {
+    if (page_is_thread(context)) {
         resources_tree = flb_rbtree_create();
 
         if (!resources_tree) {
@@ -148,6 +192,9 @@ int flb_download_thread(CURL* curl_handle, size_t id) {
 
         // TODO(1): fetch thread comments
         flb_dummy();
+
+        fix_timestamps(context);
+        FLB_LOG_INFO("Fixed timestamps in thread %zu", id);
 
         parse_resources(resources_tree, context, "//link", (xmlChar*) "href");
         parse_resources(resources_tree, context, "//script", (xmlChar*) "src");
@@ -184,7 +231,6 @@ static void curl_all_cleanup(CURL* curl_handle) {
 
 int flb_download_threads(size_t start, size_t end) {
     const useconds_t interval = 150 * 1000;  // 150 ms
-
     FLB_LOG_INFO_LB("Using interval %d microseconds", interval);
 
     curl_global_init(CURL_GLOBAL_ALL);
@@ -197,11 +243,13 @@ int flb_download_threads(size_t start, size_t end) {
     }
 
     curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, kFirefoxUserAgent);
-
     FLB_LOG_INFO("Using User Agent '%s'", kFirefoxUserAgent);
 
+    setlocale(LC_TIME, "en_US.UTF-8");
+    FLB_LOG_INFO("Using locale '%s' for time", setlocale(LC_TIME, NULL));
+
     for (size_t id = start; id <= end; ++id) {
-        if (flb_download_thread(curl_handle, id) != 0) {
+        if (download_thread_page(curl_handle, id) != 0) {
             FLB_LOG_ERROR("Can't download thread %zu, exiting...", id);
             curl_all_cleanup(curl_handle);
             return 1;
