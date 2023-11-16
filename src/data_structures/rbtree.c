@@ -21,7 +21,7 @@ flb_rbtree* flb_rbtree_create(void) {
     tree->leaf->parent = NULL;
     tree->leaf->left = NULL;
     tree->leaf->right = NULL;
-    tree->leaf->color = FLB_BLACK;
+    tree->leaf->color = kColorBlack;
 
     tree->leaf->key = NULL;
     tree->leaf->value = NULL;
@@ -76,14 +76,14 @@ static void rbtree_rotate_right(const flb_rbtree* tree, flb_rbnode* node) {
 static flb_rbnode* rbtree_add_fixup(flb_rbtree* tree, flb_rbnode* node) {
     flb_rbnode* uncle = NULL;
 
-    while (node->parent && node->parent->color == FLB_RED) {
+    while (node->parent && node->parent->color == kColorRed) {
         if (node->parent == node->parent->parent->left) {
             uncle = node->parent->parent->right;
 
-            if (uncle->color == FLB_RED) {
-                node->parent->color = FLB_BLACK;
-                node->parent->parent->color = FLB_RED;
-                uncle->color = FLB_BLACK;
+            if (uncle->color == kColorRed) {
+                node->parent->color = kColorBlack;
+                node->parent->parent->color = kColorRed;
+                uncle->color = kColorBlack;
 
                 node = node->parent->parent;
             } else {
@@ -92,8 +92,8 @@ static flb_rbnode* rbtree_add_fixup(flb_rbtree* tree, flb_rbnode* node) {
                     rbtree_rotate_left(tree, node);
                 }
 
-                node->parent->color = FLB_BLACK;
-                node->parent->parent->color = FLB_RED;
+                node->parent->color = kColorBlack;
+                node->parent->parent->color = kColorRed;
 
                 if (node->parent->parent == tree->root) {
                     tree->root = node->parent->parent->left;
@@ -104,10 +104,10 @@ static flb_rbnode* rbtree_add_fixup(flb_rbtree* tree, flb_rbnode* node) {
         } else {
             uncle = node->parent->parent->left;
 
-            if (uncle->color == FLB_RED) {
-                node->parent->color = FLB_BLACK;
-                node->parent->parent->color = FLB_RED;
-                uncle->color = FLB_BLACK;
+            if (uncle->color == kColorRed) {
+                node->parent->color = kColorBlack;
+                node->parent->parent->color = kColorRed;
+                uncle->color = kColorBlack;
 
                 node = node->parent->parent;
             } else {
@@ -116,8 +116,8 @@ static flb_rbnode* rbtree_add_fixup(flb_rbtree* tree, flb_rbnode* node) {
                     rbtree_rotate_right(tree, node);
                 }
 
-                node->parent->color = FLB_BLACK;
-                node->parent->parent->color = FLB_RED;
+                node->parent->color = kColorBlack;
+                node->parent->parent->color = kColorRed;
 
                 if (node->parent->parent == tree->root) {
                     tree->root = node->parent->parent->right;
@@ -128,7 +128,7 @@ static flb_rbnode* rbtree_add_fixup(flb_rbtree* tree, flb_rbnode* node) {
         }
     }
 
-    tree->root->color = FLB_BLACK;
+    tree->root->color = kColorBlack;
 
     return node;
 }
@@ -152,7 +152,7 @@ static flb_rbnode* rbtree_create_node(const flb_rbtree* tree, const char* key, c
     node->key = key_copy;
     node->value = value_copy;
 
-    node->color = FLB_RED;
+    node->color = kColorRed;
 
     return node;
 }
@@ -184,7 +184,7 @@ flb_rbnode* flb_rbtree_insert(flb_rbtree* tree, const char* key, const char* val
 
     if (!tree->root) {
         tree->root = node;
-        node->color = FLB_BLACK;
+        node->color = kColorBlack;
     } else {
         if (strcmp(key, parent->key) < 0) {
             parent->left = node;
@@ -195,7 +195,7 @@ flb_rbnode* flb_rbtree_insert(flb_rbtree* tree, const char* key, const char* val
 
     node->parent = parent;
 
-    if (parent && parent->color == FLB_RED) {
+    if (parent && parent->color == kColorRed) {
         rbtree_add_fixup(tree, node);
     }
 
@@ -229,62 +229,62 @@ static void rbtree_delete_fixup(flb_rbtree* tree, flb_rbnode* node) {
 
     flb_rbnode* tmp_node = NULL;
 
-    while (node != tree->root && node->color == FLB_BLACK) {
+    while (node != tree->root && node->color == kColorBlack) {
         if (node == node->parent->left) {
             tmp_node = node->parent->right;
 
-            if (tmp_node->color == FLB_RED) {
-                tmp_node->color = FLB_BLACK;
-                node->parent->color = FLB_RED;
+            if (tmp_node->color == kColorRed) {
+                tmp_node->color = kColorBlack;
+                node->parent->color = kColorRed;
                 rbtree_rotate_left(tree, node->parent);
                 tmp_node = node->parent->right;
             }
 
-            if (tmp_node->left->color == FLB_BLACK && tmp_node->right->color == FLB_BLACK) {
-                tmp_node->color = FLB_RED;
+            if (tmp_node->left->color == kColorBlack && tmp_node->right->color == kColorBlack) {
+                tmp_node->color = kColorRed;
                 node = node->parent;
-            } else if (tmp_node->right->color == FLB_BLACK) {
-                tmp_node->left->color = FLB_BLACK;
-                tmp_node->color = FLB_RED;
+            } else if (tmp_node->right->color == kColorBlack) {
+                tmp_node->left->color = kColorBlack;
+                tmp_node->color = kColorRed;
                 rbtree_rotate_right(tree, tmp_node);
                 tmp_node = node->parent->right;
             }
 
             tmp_node->color = node->parent->color;
-            node->parent->color = FLB_BLACK;
-            tmp_node->right->color = FLB_BLACK;
+            node->parent->color = kColorBlack;
+            tmp_node->right->color = kColorBlack;
             rbtree_rotate_left(tree, node->parent);
 
             node = tree->root;
         } else {
             tmp_node = node->parent->left;
 
-            if (tmp_node->color == FLB_RED) {
-                tmp_node->color = FLB_BLACK;
-                node->parent->color = FLB_RED;
+            if (tmp_node->color == kColorRed) {
+                tmp_node->color = kColorBlack;
+                node->parent->color = kColorRed;
                 rbtree_rotate_right(tree, node->parent);
                 tmp_node = node->parent->left;
             }
 
-            if (tmp_node->left->color == FLB_BLACK && tmp_node->right->color == FLB_BLACK) {
-                tmp_node->color = FLB_RED;
+            if (tmp_node->left->color == kColorBlack && tmp_node->right->color == kColorBlack) {
+                tmp_node->color = kColorRed;
                 node = node->parent;
-            } else if (tmp_node->left->color == FLB_BLACK) {
-                tmp_node->right->color = FLB_BLACK;
-                tmp_node->color = FLB_RED;
+            } else if (tmp_node->left->color == kColorBlack) {
+                tmp_node->right->color = kColorBlack;
+                tmp_node->color = kColorRed;
                 rbtree_rotate_left(tree, tmp_node);
                 tmp_node = node->parent->left;
             }
 
             tmp_node->color = node->parent->color;
-            node->parent->color = FLB_BLACK;
-            tmp_node->left->color = FLB_BLACK;
+            node->parent->color = kColorBlack;
+            tmp_node->left->color = kColorBlack;
             rbtree_rotate_right(tree, node->parent);
             node = tree->root;
         }
     }
 
-    node->color = FLB_BLACK;
+    node->color = kColorBlack;
 }
 
 static void rbtree_transplant(flb_rbtree* tree, flb_rbnode* node, flb_rbnode* new_node) {
@@ -351,11 +351,11 @@ flb_rbnode* flb_rbtree_delete(flb_rbtree* tree, const char* key) {
         new_node->color = node->color;
     }
 
-    if (new_node_color == FLB_BLACK) {
+    if (new_node_color == kColorBlack) {
         rbtree_delete_fixup(tree, tmp);
     }
 
-    tree->root->color = FLB_BLACK;
+    tree->root->color = kColorBlack;
 
     return new_node;
 }

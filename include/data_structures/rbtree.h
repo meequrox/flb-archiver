@@ -1,7 +1,7 @@
 #ifndef FLB_ARCHIVER_RBTREE_H
 #define FLB_ARCHIVER_RBTREE_H
 
-enum flb_rbtree_colors { FLB_RED, FLB_BLACK };
+enum flb_rbtree_colors { kColorRed, kColorBlack };
 
 typedef struct flb_rbnode_t {
     struct flb_rbnode_t* parent;
