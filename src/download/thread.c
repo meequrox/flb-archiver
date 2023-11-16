@@ -15,7 +15,7 @@
 #include "memory/memory.h"
 
 const char kBaseUrl[] = "https://flareboard.ru/";
-const size_t kBaseUrlLen = sizeof(kBaseUrl) / sizeof(*kBaseUrl);
+const size_t kBaseUrlLen = sizeof(kBaseUrl) / sizeof(*kBaseUrl) - 1;
 
 const char kFirefoxUserAgent[] =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:99.0) Gecko/20100101 Firefox/99.0";
@@ -45,10 +45,6 @@ static void convert_timestamp(const char* timestamp, char* dest, size_t dest_siz
 }
 
 static int fix_timestamps(xmlXPathContext* context) {
-    if (!context) {
-        return 1;
-    }
-
     const xmlChar* expr = (xmlChar*) "//div[@class='time']";
     xmlXPathObject* result = xmlXPathEvalExpression(expr, context);
     xmlNodeSet* nodes = result->nodesetval;
@@ -147,7 +143,7 @@ static void download_thread_cleanup(char* data, xmlDoc* doc, xmlXPathContext* co
 
 static int download_thread_page(CURL* curl_handle, size_t id) {
     const char query_base[] = "thread.php?id=";
-    const size_t query_base_len = sizeof(query_base) / sizeof(*query_base);
+    const size_t query_base_len = sizeof(query_base) / sizeof(*query_base) - 1;
 
     const size_t uint_max_digits = 10;
     const size_t bufsize = kBaseUrlLen + query_base_len + uint_max_digits + 1;
@@ -173,8 +169,14 @@ static int download_thread_page(CURL* curl_handle, size_t id) {
 
     const int parse_options = HTML_PARSE_NOBLANKS | HTML_PARSE_NOERROR | HTML_PARSE_NOWARNING;
     xmlDoc* doc = htmlReadDoc((xmlChar*) memory.data, NULL, NULL, parse_options);
-
     xmlXPathContext* context = xmlXPathNewContext(doc);
+
+    if (!doc || !context) {
+        FLB_LOG_ERROR("Can't read HTML document or create XPath context");
+        download_thread_cleanup(memory.data, doc, context, NULL);
+        return 1;
+    }
+
     xmlXPathRegisterNs(context, (xmlChar*) "html", (xmlChar*) "http://www.w3.org/1999/xhtml");
 
     flb_rbtree* resources_tree = NULL;
@@ -191,7 +193,7 @@ static int download_thread_page(CURL* curl_handle, size_t id) {
         FLB_LOG_INFO_LB("Processing thread %zu (url '%s')", id, thread_url);
 
         // TODO(1): fetch thread comments
-        flb_dummy();
+        fetch_comments(curl_handle, context);
 
         fix_timestamps(context);
         FLB_LOG_INFO("Fixed timestamps in thread %zu", id);
@@ -201,14 +203,14 @@ static int download_thread_page(CURL* curl_handle, size_t id) {
         parse_resources(resources_tree, context, "//img", (xmlChar*) "src");
         parse_resources(resources_tree, context, "//video", (xmlChar*) "src");
 
-        if (resources_tree && resources_tree->root) {
+        if (resources_tree->root) {
             FLB_LOG_INFO("Thread %d contains downloadable resources", id);
 
             flb_rbtree_foreach3(resources_tree, download_resource, curl_handle);
         }
 
         const char extension[] = ".html";
-        char filename[uint_max_digits + sizeof(extension) / sizeof(*extension) + 1];
+        char filename[uint_max_digits + sizeof(extension) / sizeof(*extension)];
         snprintf(filename, bufsize, "%zu%s", id, extension);
 
         const int save_options =
