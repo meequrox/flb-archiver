@@ -1,5 +1,6 @@
 #include "download/thread.h"
 
+#include <errno.h>
 #include <libxml/HTMLparser.h>
 #include <libxml/xmlsave.h>
 #include <libxml2/libxml/xpathInternals.h>
@@ -9,6 +10,7 @@
 #include "data_structures/rbtree.h"
 #include "download/comments.h"
 #include "filesystem/directories.h"
+#include "logger/logger.h"
 #include "memory/memory.h"
 
 const char kBaseUrl[] = "https://flareboard.ru/";
@@ -30,7 +32,7 @@ int flb_is_thread(xmlXPathContext* context) {
 static int download_resource(CURL* curl_handle, const char* url, const char* filename) {
     FILE* file = fopen(filename, "w");
     if (!file) {
-        perror(filename);
+        FLB_LOG_ERROR("'%s': %s", filename, strerror(errno));
         return 1;
     }
 
@@ -42,9 +44,11 @@ static int download_resource(CURL* curl_handle, const char* url, const char* fil
     CURLcode response = curl_easy_perform(curl_handle);
 
     if (response != CURLE_OK) {
-        fprintf(stderr, "Can not fetch %s: %s\n", url, curl_easy_strerror(response));
+        FLB_LOG_ERROR("Can't fetch '%s': %s", url, curl_easy_strerror(response));
         return 1;
     }
+
+    FLB_LOG_INFO("Downloaded '%s' to file '%s'", url, filename);
 
     fclose(file);
     return 0;
@@ -93,6 +97,7 @@ static int parse_resources(flb_rbtree* tree, xmlXPathContext* context, const cha
                 snprintf(resource_url, resource_url_len, "%s%s", kBaseUrl, attr);
 
                 flb_rbtree_insert(tree, resource_url, attr_str);
+                FLB_LOG_INFO("Insert '%s' into resources tree (file '%s')", resource_url, attr_str);
             }
 
             xmlFree(attr);
@@ -133,7 +138,7 @@ int flb_download_thread(CURL* curl_handle, size_t id) {
     CURLcode response = curl_easy_perform(curl_handle);
 
     if (response != CURLE_OK) {
-        fprintf(stderr, "Can not fetch %s: %s\n", thread_url, curl_easy_strerror(response));
+        FLB_LOG_ERROR("Can't fetch %s: %s", thread_url, curl_easy_strerror(response));
         download_thread_cleanup(memory.data, NULL, NULL, NULL);
         return 1;
     }
@@ -150,10 +155,15 @@ int flb_download_thread(CURL* curl_handle, size_t id) {
         resources_tree = flb_rbtree_create();
 
         if (!resources_tree) {
-            fprintf(stderr, "Can not create resources tree\n");
+            FLB_LOG_ERROR("Can't create resources tree");
             download_thread_cleanup(memory.data, doc, context, NULL);
             return 1;
         }
+
+        FLB_LOG_INFO_LB("Processing thread %zu (url '%s')", id, thread_url);
+
+        // TODO(1): fetch thread comments
+        flb_dummy();
 
         parse_resources(resources_tree, context, "//link", (xmlChar*) "href");
         parse_resources(resources_tree, context, "//script", (xmlChar*) "src");
@@ -161,6 +171,8 @@ int flb_download_thread(CURL* curl_handle, size_t id) {
         parse_resources(resources_tree, context, "//video", (xmlChar*) "src");
 
         if (resources_tree && resources_tree->root) {
+            FLB_LOG_INFO("Thread %d contains downloadable resources", id);
+
             // TODO(3): Implement universal DFS flb_rbtree_foreach(func, tree, root) function
             download_resources(curl_handle, resources_tree, resources_tree->root);
         }
@@ -174,6 +186,8 @@ int flb_download_thread(CURL* curl_handle, size_t id) {
         xmlSaveCtxt* saveCtxt = xmlSaveToFilename(filename, "UTF-8", save_options);
         xmlSaveDoc(saveCtxt, doc);
         xmlSaveClose(saveCtxt);
+
+        FLB_LOG_INFO("Saved thread %zu to file '%s'", id, filename);
     }
 
     download_thread_cleanup(memory.data, doc, context, resources_tree);
@@ -186,25 +200,26 @@ static void curl_all_cleanup(CURL* curl_handle) {
 }
 
 int flb_download_threads(size_t start, size_t end) {
-    // TODO(1): fetch thread comments
-    flb_dummy();
-
     const useconds_t interval = 150 * 1000;  // 150 ms
+
+    FLB_LOG_INFO_LB("Using interval %d microseconds", interval);
 
     curl_global_init(CURL_GLOBAL_ALL);
     CURL* curl_handle = curl_easy_init();
 
     if (!curl_handle) {
-        fprintf(stderr, "Can not handle cURL\n");
+        FLB_LOG_ERROR("Can't init cURL handle");
         curl_all_cleanup(curl_handle);
         return 1;
     }
 
     curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, kFirefoxUserAgent);
 
+    FLB_LOG_INFO("Using User Agent '%s'", kFirefoxUserAgent);
+
     for (size_t id = start; id <= end; ++id) {
         if (flb_download_thread(curl_handle, id) != 0) {
-            fprintf(stderr, "Can not download thread %zu, exiting...\n", id);
+            FLB_LOG_ERROR("Can't download thread %zu, exiting...", id);
             curl_all_cleanup(curl_handle);
             return 1;
         }

@@ -1,18 +1,15 @@
-set(target_name memory)
+set(target_name logger)
 
 set(LIBRARY_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/include/${target_name})
 
 add_library(${target_name} STATIC
-    ${LIBRARY_INCLUDE_DIR}/memory.h
-    memory.c
+    ${LIBRARY_INCLUDE_DIR}/colors.h
+    ${LIBRARY_INCLUDE_DIR}/logger.h
+    logger.c
 )
 
 target_include_directories(${target_name} PUBLIC
     ${PROJECT_SOURCE_DIR}/include
-)
-
-target_link_libraries(${target_name} PUBLIC
-    logger
 )
 
 include(CompileOptions)

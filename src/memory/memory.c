@@ -3,10 +3,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "logger/logger.h"
+
 size_t flb_write_memory_callback(const void* contents, size_t size, size_t nmemb,
                                  flb_memstruct_t* userdata) {
     if (!userdata) {
-        fprintf(stderr, "Userdata is NULL\n");
+        FLB_LOG_ERROR("Userdata is NULL");
         return 0;
     }
 
@@ -17,7 +19,7 @@ size_t flb_write_memory_callback(const void* contents, size_t size, size_t nmemb
         char* ptr = (char*) realloc(userdata->data, new_size);
 
         if (!ptr) {
-            fprintf(stderr, "Can not reallocate userdata memory\n");
+            FLB_LOG_ERROR("Can not reallocate userdata memory");
             return 0;
         }
 
@@ -34,7 +36,7 @@ size_t flb_write_memory_callback(const void* contents, size_t size, size_t nmemb
 
 size_t flb_write_file_callback(const char* ptr, size_t size, size_t nmemb, FILE* fd) {
     if (!fd) {
-        fprintf(stderr, "File descriptor is NULL\n");
+        FLB_LOG_ERROR("File descriptor is NULL");
         return 0;
     }
 
