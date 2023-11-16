@@ -19,11 +19,13 @@ typedef struct flb_rbtree_t {
 } flb_rbtree;
 
 flb_rbtree* flb_rbtree_create(void);
+void flb_rbtree_free(flb_rbtree* tree);
 
 flb_rbnode* flb_rbtree_insert(flb_rbtree* tree, const char* key, const char* value);
 flb_rbnode* flb_rbtree_lookup(const flb_rbtree* tree, const char* key);
 flb_rbnode* flb_rbtree_delete(flb_rbtree* tree, const char* key);
 
-void flb_rbtree_free(flb_rbtree* tree);
+int flb_rbtree_foreach3(const flb_rbtree* tree, int (*fun)(void*, const char*, const char*),
+                        void* first_arg);
 
 #endif  // FLB_ARCHIVER_RBTREE_H

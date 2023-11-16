@@ -395,3 +395,30 @@ void flb_rbtree_free(flb_rbtree* tree) {
 
     free(tree);
 }
+
+static int rbtree_foreach3(const flb_rbtree* tree, const flb_rbnode* root,
+                           int (*fun)(void*, const char*, const char*), void* first_arg) {
+    if (!root || root == tree->leaf) {
+        return 0;
+    }
+
+    int rc = 0;
+
+    // DFS
+    rc += rbtree_foreach3(tree, root->left, fun, first_arg);
+    rc += rbtree_foreach3(tree, root->right, fun, first_arg);
+
+    rc += fun(first_arg, root->key, root->value);
+    return rc;
+}
+
+int flb_rbtree_foreach3(const flb_rbtree* tree, int (*fun)(void*, const char*, const char*),
+                        void* first_arg) {
+    int rc = 1;
+
+    if (tree && fun) {
+        rc = rbtree_foreach3(tree, tree->root, fun, first_arg);
+    }
+
+    return rc;
+}

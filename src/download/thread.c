@@ -54,22 +54,6 @@ static int download_resource(CURL* curl_handle, const char* url, const char* fil
     return 0;
 }
 
-static int download_resources(CURL* curl_handle, flb_rbtree* tree, flb_rbnode* root) {
-    if (!curl_handle || !root || root == tree->leaf) {
-        return 0;
-    }
-
-    const char* url = root->key;
-    const char* filename = root->value;
-
-    download_resource(curl_handle, url, filename);
-
-    download_resources(curl_handle, tree, root->left);
-    download_resources(curl_handle, tree, root->right);
-
-    return 0;
-}
-
 static int is_local_path(const char* path) {
     return path != strstr(path, "https://") && path != strstr(path, "http://");
 }
@@ -173,8 +157,7 @@ int flb_download_thread(CURL* curl_handle, size_t id) {
         if (resources_tree && resources_tree->root) {
             FLB_LOG_INFO("Thread %d contains downloadable resources", id);
 
-            // TODO(3): Implement universal DFS flb_rbtree_foreach(func, tree, root) function
-            download_resources(curl_handle, resources_tree, resources_tree->root);
+            flb_rbtree_foreach3(resources_tree, download_resource, curl_handle);
         }
 
         const char extension[] = ".html";
