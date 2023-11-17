@@ -40,7 +40,7 @@ flb_list_node* flb_list_insert_front(flb_list_node* list, const char* value) {
     return new_node;
 }
 
-flb_list_node* flb_list_lookup(flb_list_node* list, const char* value) {
+__attribute__((unused)) flb_list_node* flb_list_lookup(flb_list_node* list, const char* value) {
     while (list) {
         if (strcmp(list->value, value) == 0) {
             return list;
@@ -52,7 +52,7 @@ flb_list_node* flb_list_lookup(flb_list_node* list, const char* value) {
     return NULL;
 }
 
-flb_list_node* flb_list_delete(flb_list_node* list, const char* value) {
+__attribute__((unused)) flb_list_node* flb_list_delete(flb_list_node* list, const char* value) {
     for (flb_list_node *prev = NULL, *cur = list; cur; cur = cur->next) {
         if (strcmp(cur->value, value) == 0) {
             if (prev == NULL) {

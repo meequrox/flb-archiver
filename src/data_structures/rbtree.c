@@ -301,7 +301,7 @@ static void rbtree_transplant(flb_rbtree* tree, flb_rbnode* node, flb_rbnode* ne
     }
 }
 
-flb_rbnode* flb_rbtree_delete(flb_rbtree* tree, const char* key) {
+__attribute__((unused)) flb_rbnode* flb_rbtree_delete(flb_rbtree* tree, const char* key) {
     if (!tree || !tree->root) {
         return NULL;
     }
