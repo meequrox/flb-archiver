@@ -3,6 +3,8 @@
 
 #include "logger/colors.h"
 
+// Default
+
 #define FLB_LOG_INFO(format, ...) \
     flb_logger(LOGCLR_CYAN "INFO" LOGCLR_NORMAL, __func__, format, ##__VA_ARGS__)
 
