@@ -1,3 +1,4 @@
+#include <locale.h>
 #include <stdio.h>
 
 #include "download/thread.h"
@@ -31,10 +32,23 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    FLB_LOG_INFO("ID range [%d, %d]\n", start, end);
+    FLB_LOG_INFO("ID range [%d, %d]", start, end);
+
+    const size_t interval_ms = 150;
+    const size_t ms_to_us_multiplier = 1000;
+    FLB_LOG_INFO("Using interval %zu ms", interval_ms);
+
+    extern const char kBaseUrl[];
+    extern const char kFirefoxUserAgent[];
+    FLB_LOG_INFO("Using base URL '%s'", kBaseUrl);
+    FLB_LOG_INFO("Using user agent '%s'", kFirefoxUserAgent);
+
+    extern const char kTimeLocale[];
+    setlocale(LC_TIME, kTimeLocale);
+    FLB_LOG_INFO("Using time locale '%s'", kTimeLocale);
 
     flb_chdir_out();
-    flb_download_threads(start, end);
+    flb_download_threads(start, end, interval_ms * ms_to_us_multiplier);
 
     return EXIT_SUCCESS;
 }

@@ -10,8 +10,7 @@ typedef struct flb_memstruct {
     size_t allocated_bytes;
 } flb_memstruct_t;
 
-size_t flb_write_memory_callback(const void* contents, size_t size, size_t nmemb,
-                                 flb_memstruct_t* memory);
+size_t flb_write_memory_callback(const void* contents, size_t size, size_t nmemb, void* memory);
 size_t flb_write_file_callback(const void* contents, size_t size, size_t nmemb, FILE* fd);
 
 #endif  // FLB_ARCHIVER_MEMORY_H

@@ -9,33 +9,29 @@
 #include "memory/memory.h"
 
 static char* get_array_start(xmlNode* node) {
-    const char* content = (char*) xmlNodeGetContent(node);
+    if (node) {
+        // Example: ...постов\nlet posts = ["1","109","111","121","132","4375"];\n...
+        //                     ^            ^
+        //                start_ptr(1)      |
+        //                             start_ptr(2)
 
-    // Example: ...постов\nlet posts = ["1","109","111","121","132","4375"];\n...
-    //                     ^            ^
-    //                start_ptr(1)      |
-    //                             start_ptr(2)
+        const char needle[] = "let posts = [";
+        const size_t needle_len = sizeof(needle) / sizeof(*needle) - 1;
 
-    const char needle[] = "let posts = [";
-    const size_t needle_len = sizeof(needle) / sizeof(*needle) - 1;
+        const char* content = (char*) xmlNodeGetContent(node);
+        char* start_ptr = strstr(content, needle);
 
-    char* start_ptr = strstr(content, needle);
-    if (!start_ptr) {
-        return NULL;
+        if (start_ptr) {
+            return start_ptr + needle_len;
+        }
     }
 
-    start_ptr += needle_len;
-    return start_ptr;
+    return NULL;
 }
 
 static flb_list_node* parse_array(const char* ptr, size_t* counter) {
-    if (!ptr) {
-        return NULL;
-    }
-
     char* str = strdup(ptr);
     if (!str) {
-        FLB_LOG_ERROR("Can't create string copy");
         return NULL;
     }
 
@@ -68,7 +64,7 @@ static flb_list_node* parse_array(const char* ptr, size_t* counter) {
 }
 
 static flb_list_node* get_comments_ids(xmlXPathContext* context, size_t* counter) {
-    if (!counter) {
+    if (!context || !counter) {
         return NULL;
     }
 
@@ -76,18 +72,16 @@ static flb_list_node* get_comments_ids(xmlXPathContext* context, size_t* counter
     xmlXPathObject* result = xmlXPathEvalExpression(expr, context);
     xmlNodeSet* nodes = result->nodesetval;
 
-    if (nodes->nodeNr < 1) {
-        return NULL;
-    }
-
-    xmlNode* node = nodes->nodeTab[0];
-    char* array_start_ptr = get_array_start(node);
-
     flb_list_node* list = NULL;
 
-    if (array_start_ptr) {
-        FLB_LOG_INFO("Found array with comments IDs in tag '%s'", (char*) node->name);
-        list = parse_array(array_start_ptr, counter);
+    if (nodes->nodeNr > 0) {
+        xmlNode* node = nodes->nodeTab[0];
+        char* array_start_ptr = get_array_start(node);
+
+        if (array_start_ptr) {
+            FLB_LOG_INFO("Found array with comments IDs");
+            list = parse_array(array_start_ptr, counter);
+        }
     }
 
     xmlXPathFreeObject(result);
@@ -95,16 +89,18 @@ static flb_list_node* get_comments_ids(xmlXPathContext* context, size_t* counter
 }
 
 void strncpy_no_trunc(char* dest, const char* src, size_t n) {
-    size_t i = 0;
+    if (dest && src && n) {
+        size_t i = 0;
 
-    while (i < n && src[i] != '\0') {
-        dest[i] = src[i];
-        ++i;
-    }
+        while (i < n && src[i] != '\0') {
+            dest[i] = src[i];
+            ++i;
+        }
 
-    while (i < n) {
-        dest[i] = '\0';
-        ++i;
+        while (i < n) {
+            dest[i] = '\0';
+            ++i;
+        }
     }
 }
 
@@ -128,12 +124,12 @@ static void concat_fields(flb_list_node* list, char* dest, const size_t dest_siz
     }
 
     while (end_idx > 0) {
-        dest[end_idx] = ' ';
+        dest[end_idx] = '_';
         --end_idx;
     }
 
     if (dest[0] != '&') {
-        dest[0] = ' ';
+        dest[0] = '_';
     }
 }
 
@@ -168,22 +164,17 @@ static void insert_comments(char* html, xmlXPathContext* thread_context) {
     xmlXPathObject* thread_result =
         xmlXPathEvalExpression((xmlChar*) "//div[@class='comments']", thread_context);
 
-    if (!comments_result || !thread_result) {
+    if (comments_result && thread_result) {
+        xmlNodeSet* comments_nodes = comments_result->nodesetval;
+        xmlNodeSet* thread_nodes = thread_result->nodesetval;
+
+        if (thread_nodes->nodeNr > 0) {
+            append_nodes_to_div(thread_nodes->nodeTab[0], comments_nodes);
+
+            FLB_LOG_INFO("Inserted %d comment nodes", comments_nodes->nodeNr);
+        }
+    } else {
         FLB_LOG_ERROR("Can't eval XPath to parse comments HTML");
-        xmlFreeDoc(comments_doc);
-        xmlXPathFreeContext(comments_context);
-        xmlXPathFreeObject(comments_result);
-        xmlXPathFreeObject(thread_result);
-        return;
-    }
-
-    xmlNodeSet* comments_nodes = comments_result->nodesetval;
-    xmlNodeSet* thread_nodes = thread_result->nodesetval;
-
-    if (thread_nodes->nodeNr > 0) {
-        append_nodes_to_div(thread_nodes->nodeTab[0], comments_nodes);
-
-        FLB_LOG_INFO("Inserted %d comment nodes", comments_nodes->nodeNr);
     }
 
     xmlFreeDoc(comments_doc);
@@ -196,9 +187,7 @@ int include_comments(CURL* curl_handle, xmlXPathContext* context) {
     size_t counter = 0;
     flb_list_node* ids_list = get_comments_ids(context, &counter);
 
-    FLB_LOG_INFO("Thread has %zu comments", counter);
-
-    if (!ids_list || counter == 0) {
+    if (!ids_list && counter == 0) {
         return 0;
     }
 
@@ -206,23 +195,28 @@ int include_comments(CURL* curl_handle, xmlXPathContext* context) {
     const size_t field_name_len = sizeof(field_name) / sizeof(*field_name) - 1;
 
     const size_t uint_max_digits = 10;
-    const size_t post_fields_len = counter * (field_name_len + uint_max_digits + 1);
+    const size_t post_fields_size = counter * (field_name_len + uint_max_digits + 1) + 1;
 
     // "currentPosts[]=6001&currentPosts[]=6002"
-    char post_fields[post_fields_len];
-    concat_fields(ids_list, post_fields, post_fields_len, field_name, field_name_len);
+    char post_fields[post_fields_size];
+    concat_fields(ids_list, post_fields, post_fields_size, field_name, field_name_len);
     char* post_fields_ptr = strchr(post_fields, '&') + 1;
-
-    FLB_LOG_INFO("POST data (%zu bytes): '%s'", post_fields_len - (post_fields_ptr - post_fields),
-                 post_fields_ptr);
 
     flb_list_free(ids_list);
     ids_list = NULL;
 
-    const size_t initial_bufsize = 16 * 1024 + 1;
-    flb_memstruct_t memory = {(char*) malloc(initial_bufsize), 0, initial_bufsize};
+    const size_t initial_data_size = 16 * 1024 + 1;
+    flb_memstruct_t memory = {(char*) malloc(initial_data_size), 0, initial_data_size};
 
-    const char url[] = "https://flareboard.ru/selectPostComments.php";
+    extern const char kBaseUrl[];
+    extern const size_t kBaseUrlLen;
+
+    const char script_name[] = "selectPostComments.php";
+
+    const size_t url_size = kBaseUrlLen + sizeof(script_name) / sizeof(*script_name);
+    char url[url_size];
+    snprintf(url, url_size, "%s%s", kBaseUrl, script_name);
+
     curl_easy_setopt(curl_handle, CURLOPT_URL, url);
     curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, flb_write_memory_callback);
     curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void*) &memory);
@@ -236,8 +230,6 @@ int include_comments(CURL* curl_handle, xmlXPathContext* context) {
         free(memory.data);
         return 1;
     }
-
-    FLB_LOG_INFO("Comments fetched!");
 
     insert_comments(memory.data, context);
 
