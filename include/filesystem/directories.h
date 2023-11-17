@@ -3,7 +3,7 @@
 
 int flb_mkdir(const char* path);
 
-int flb_mkdirs(char* path);
+int flb_mkdirs(const char* path);
 
 int flb_chdir_out(void);
 

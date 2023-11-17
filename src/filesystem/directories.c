@@ -1,7 +1,7 @@
 #include "filesystem/directories.h"
 
 #include <errno.h>
-#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <time.h>
@@ -23,27 +23,35 @@ int flb_mkdir(const char* path) {
     return rc;
 }
 
-int flb_mkdirs(char* path) {
+int flb_mkdirs(const char* path) {
     if (!path) {
+        return 1;
+    }
+
+    char* path_copy = strdup(path);
+    if (!path_copy) {
         return 1;
     }
 
     const char sep = '/';
 
-    char* slash_pos = strchr(path, sep);
-    while (slash_pos) {
+    char* slash_pos = strchr(path_copy, sep);
+    int failed = 0;
+
+    while (slash_pos && !failed) {
         *slash_pos = '\0';
 
-        if (flb_mkdir(path) != 0 && errno != EEXIST) {
-            FLB_LOG_ERROR("%s: %s", path, strerror(errno));
-            return 1;
+        failed = flb_mkdir(path_copy) != 0 && errno != EEXIST;
+        if (failed) {
+            FLB_LOG_ERROR("%s: %s", path_copy, strerror(errno));
         }
 
         *slash_pos = sep;
         slash_pos = strchr(slash_pos + 1, sep);
     }
 
-    return 0;
+    free(path_copy);
+    return failed;
 }
 
 int flb_chdir_out(void) {
@@ -58,7 +66,7 @@ int flb_chdir_out(void) {
         return 1;
     }
 
-    FLB_LOG_INFO("Current working directory: %s", dirname_buf);
+    FLB_LOG_INFO("Current working directory: '%s'", dirname_buf);
 
     return 0;
 }
