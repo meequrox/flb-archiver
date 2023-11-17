@@ -9,7 +9,7 @@
 
 #include "logger/logger.h"
 
-int flb_mkdir(const char* path) {
+static int flb_mkdir(const char* path) {
 #if defined(_WIN32)
     int rc = mkdir(path);
 #else
@@ -43,7 +43,7 @@ int flb_mkdirs(const char* path) {
 
         failed = flb_mkdir(path_copy) != 0 && errno != EEXIST;
         if (failed) {
-            FLB_LOG_ERROR("%s: %s", path_copy, strerror(errno));
+            FLB_LOG_ERROR("%s: Can't create directory", path_copy);
         }
 
         *slash_pos = sep;
@@ -56,17 +56,25 @@ int flb_mkdirs(const char* path) {
 
 int flb_chdir_out(void) {
     time_t t = time(NULL);
-    struct tm* tm = localtime(&t);
+    struct tm tm;
+    struct tm* tm_ptr = localtime_r(&t, &tm);
 
-    char dirname_buf[32] = {'\0'};
-    strftime(dirname_buf, sizeof(dirname_buf), "flb_%y.%m.%d_%H-%M", tm);
+    const char format[] = "flb_%y.%m.%d_%H-%M";
+    const size_t format_size = sizeof(format) / sizeof(*format);
 
-    if ((flb_mkdir(dirname_buf) != 0 && errno != EEXIST) || chdir(dirname_buf) != 0) {
-        FLB_LOG_ERROR("%s: %s", dirname_buf, strerror(errno));
+    char dirname[format_size];
+    strftime(dirname, format_size, format, tm_ptr);
+
+    if (flb_mkdir(dirname) != 0 && errno != EEXIST) {
+        FLB_LOG_ERROR("%s: Can't create directory", dirname);
         return 1;
     }
 
-    FLB_LOG_INFO("Current working directory: '%s'", dirname_buf);
+    if (chdir(dirname) != 0) {
+        FLB_LOG_ERROR("%s: Can't change working directory", dirname);
+        return 1;
+    }
 
+    FLB_LOG_INFO("Current working directory: '%s'", dirname);
     return 0;
 }
