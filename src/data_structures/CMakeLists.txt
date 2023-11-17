@@ -3,9 +3,7 @@ set(target_name data_structures)
 set(LIBRARY_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/include/${target_name})
 
 add_library(${target_name} STATIC
-    ${LIBRARY_INCLUDE_DIR}/rbtree.h
     ${LIBRARY_INCLUDE_DIR}/linked_list.h
-    rbtree.c
     linked_list.c
 )
 
