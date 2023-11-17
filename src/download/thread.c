@@ -70,6 +70,12 @@ static int fix_timestamps(xmlXPathContext* context) {
 }
 
 static int download_resource(CURL* curl_handle, const char* url, const char* filename) {
+    if (access(filename, F_OK) == 0) {
+        return 0;
+    }
+
+    flb_mkdirs(filename);
+
     FILE* file = fopen(filename, "w");
     if (!file) {
         FLB_LOG_ERROR("'%s': %s", filename, strerror(errno));
@@ -107,27 +113,26 @@ static int parse_resources(flb_rbtree* tree, xmlXPathContext* context, const cha
     xmlXPathObject* result = xmlXPathEvalExpression((xmlChar*) xpath_expr, context);
     xmlNodeSet* nodes = result->nodesetval;
 
+    int resource_counter = 0;
     for (int i = 0; i < nodes->nodeNr; ++i) {
         xmlChar* attr = xmlGetProp(nodes->nodeTab[i], (xmlChar*) find_attr);
         char* attr_str = (char*) attr;
 
         if (attr && is_local_path(attr_str)) {
-            if (access(attr_str, F_OK) != 0) {
-                flb_mkdirs(attr_str);
+            const size_t resource_url_len = kBaseUrlLen + strlen(attr_str) + 1;
 
-                const size_t resource_url_len = kBaseUrlLen + strlen(attr_str) + 1;
+            char resource_url[resource_url_len];
+            snprintf(resource_url, resource_url_len, "%s%s", kBaseUrl, attr);
 
-                char resource_url[resource_url_len];
-                snprintf(resource_url, resource_url_len, "%s%s", kBaseUrl, attr);
-
-                flb_rbtree_insert(tree, resource_url, attr_str);
-                FLB_LOG_INFO("Insert '%s' into resources tree (file '%s')", resource_url, attr_str);
-            }
+            flb_rbtree_insert(tree, resource_url, attr_str);
+            ++resource_counter;
 
             xmlFree(attr);
             attr = NULL;
         }
     }
+
+    FLB_LOG_INFO("Inserted %zu '%s' resources into tree", resource_counter, xpath_expr);
 
     xmlXPathFreeObject(result);
     return 0;
@@ -246,10 +251,10 @@ int flb_download_threads(size_t start, size_t end) {
     }
 
     curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, kFirefoxUserAgent);
-    FLB_LOG_INFO("Using User Agent '%s'", kFirefoxUserAgent);
+    FLB_LOG_INFO("Using user agent '%s'", kFirefoxUserAgent);
 
     setlocale(LC_TIME, "en_US.UTF-8");
-    FLB_LOG_INFO("Using locale '%s' for time", setlocale(LC_TIME, NULL));
+    FLB_LOG_INFO("Using time locale '%s'", setlocale(LC_TIME, NULL));
 
     for (size_t id = start; id <= end; ++id) {
         if (download_thread_page(curl_handle, id) != 0) {
