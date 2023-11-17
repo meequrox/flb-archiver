@@ -16,10 +16,6 @@ static int flb_mkdir(const char* path) {
     int rc = mkdir(path, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
 #endif
 
-    if (rc == 0) {
-        FLB_LOG_INFO("Created directory '%s'", path);
-    }
-
     return rc;
 }
 
