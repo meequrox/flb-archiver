@@ -40,7 +40,9 @@ static flb_list_node* parse_array(const char* ptr, size_t* counter) {
     flb_list_node* list = NULL;
 
     const char delimiter[] = ",";
-    char* token = strtok(str, delimiter);
+
+    char* save_ptr = NULL;
+    char* token = strtok_r(str, delimiter, &save_ptr);
 
     while (token != NULL) {
         if (token[0] == '"') {
@@ -56,7 +58,7 @@ static flb_list_node* parse_array(const char* ptr, size_t* counter) {
         list = flb_list_insert_front(list, token);
         ++(*counter);
 
-        token = strtok(NULL, delimiter);
+        token = strtok_r(NULL, delimiter, &save_ptr);
     }
 
     free(str);
