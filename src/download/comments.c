@@ -29,6 +29,10 @@ static char* get_array_start(xmlNode* node) {
 }
 
 static flb_list_node* parse_array(const char* ptr, size_t* counter) {
+    if (!ptr) {
+        return NULL;
+    }
+
     char* str = strdup(ptr);
     if (!str) {
         FLB_LOG_ERROR("Can't create string copy");
@@ -77,10 +81,14 @@ static flb_list_node* get_comments_ids(xmlXPathContext* context, size_t* counter
     }
 
     xmlNode* node = nodes->nodeTab[0];
-    FLB_LOG_INFO("Found tag '%s' with comments IDs", (char*) node->name);
-
     char* array_start_ptr = get_array_start(node);
-    flb_list_node* list = parse_array(array_start_ptr, counter);
+
+    flb_list_node* list = NULL;
+
+    if (array_start_ptr) {
+        FLB_LOG_INFO("Found array with comments IDs in tag '%s'", (char*) node->name);
+        list = parse_array(array_start_ptr, counter);
+    }
 
     xmlXPathFreeObject(result);
     return list;
@@ -188,14 +196,9 @@ int include_comments(CURL* curl_handle, xmlXPathContext* context) {
     size_t counter = 0;
     flb_list_node* ids_list = get_comments_ids(context, &counter);
 
-    if (!ids_list) {
-        FLB_LOG_ERROR("Can't get comments IDs");
-        return 1;
-    }
-
     FLB_LOG_INFO("Thread has %zu comments", counter);
 
-    if (counter == 0) {
+    if (!ids_list || counter == 0) {
         return 0;
     }
 
@@ -214,6 +217,7 @@ int include_comments(CURL* curl_handle, xmlXPathContext* context) {
                  post_fields_ptr);
 
     flb_list_free(ids_list);
+    ids_list = NULL;
 
     const size_t initial_bufsize = 16 * 1024 + 1;
     flb_memstruct_t memory = {(char*) malloc(initial_bufsize), 0, initial_bufsize};
