@@ -6,7 +6,7 @@
 #include <locale.h>
 #include <string.h>
 
-#include "data_structures/rbtree.h"
+#include "data_structures/linked_list.h"
 #include "download/comments.h"
 #include "filesystem/directories.h"
 #include "logger/logger.h"
@@ -114,10 +114,10 @@ static int is_local_path(const char* path) {
     return path != strstr(path, "https://") && path != strstr(path, "http://");
 }
 
-static int parse_resources(flb_rbtree* tree, xmlXPathContext* context, const char* xpath_expr,
-                           const char* find_attr) {
-    if (!tree || !context || !xpath_expr || !find_attr) {
-        return 1;
+static flb_list_node* parse_resources(flb_list_node* list, xmlXPathContext* context,
+                                      const char* xpath_expr, const char* find_attr) {
+    if (!context || !xpath_expr || !find_attr) {
+        return NULL;
     }
 
     xmlXPathObject* result = xmlXPathEvalExpression((xmlChar*) xpath_expr, context);
@@ -133,7 +133,7 @@ static int parse_resources(flb_rbtree* tree, xmlXPathContext* context, const cha
             char resource_url[resource_url_size];
             snprintf(resource_url, resource_url_size, "%s%s", kBaseUrl, attr);
 
-            flb_rbtree_insert(tree, resource_url, attr_str);
+            list = flb_list_insert_front(list, resource_url, attr_str);
 
             xmlFree(attr);
             attr = NULL;
@@ -141,15 +141,15 @@ static int parse_resources(flb_rbtree* tree, xmlXPathContext* context, const cha
     }
 
     xmlXPathFreeObject(result);
-    return 0;
+    return list;
 }
 
 static void download_thread_page_cleanup(char* data, xmlDoc* doc, xmlXPathContext* context,
-                                         flb_rbtree* tree) {
+                                         flb_list_node* list) {
     free(data);
     xmlFreeDoc(doc);
     xmlXPathFreeContext(context);
-    flb_rbtree_free(tree);
+    flb_list_free(list);
 }
 
 static void save_thread(size_t id, size_t max_id_len, xmlDoc* doc) {
@@ -161,7 +161,7 @@ static void save_thread(size_t id, size_t max_id_len, xmlDoc* doc) {
         snprintf(filename, filename_size, "%zu%s", id, extension);
 
         const int save_options =
-            XML_SAVE_FORMAT | XML_SAVE_NO_DECL | XML_SAVE_NO_EMPTY | XML_SAVE_AS_HTML;
+            XML_SAVE_FORMAT | XML_SAVE_NO_DECL | XML_SAVE_NO_EMPTY | XML_SAVE_AS_HTML;  // NOLINT
         xmlSaveCtxt* saveCtxt = xmlSaveToFilename(filename, "UTF-8", save_options);
 
         xmlSaveDoc(saveCtxt, doc);
@@ -197,7 +197,7 @@ static int download_thread_page(CURL* curl_handle, size_t id) {
         return 1;
     }
 
-    const int parse_options = HTML_PARSE_NOBLANKS | HTML_PARSE_NOERROR | HTML_PARSE_NOWARNING;
+    const int parse_options = HTML_PARSE_NOBLANKS | HTML_PARSE_NOERROR | HTML_PARSE_NOWARNING;  // NOLINT
     xmlDoc* doc = htmlReadDoc((xmlChar*) memory.data, NULL, NULL, parse_options);
     xmlXPathContext* context = xmlXPathNewContext(doc);
 
@@ -209,17 +209,9 @@ static int download_thread_page(CURL* curl_handle, size_t id) {
 
     xmlXPathRegisterNs(context, (xmlChar*) "html", (xmlChar*) "http://www.w3.org/1999/xhtml");
 
-    flb_rbtree* resources_tree = NULL;
+    flb_list_node* resources_list = NULL;
 
     if (page_is_thread(context)) {
-        resources_tree = flb_rbtree_create();
-
-        if (!resources_tree) {
-            FLB_LOG_ERROR("Can't create resources tree");
-            download_thread_page_cleanup(memory.data, doc, context, NULL);
-            return 1;
-        }
-
         FLB_LOG_INFO_LB("Processing thread %zu (URL '%s')", id, thread_url);
 
         include_comments(curl_handle, context);
@@ -229,20 +221,20 @@ static int download_thread_page(CURL* curl_handle, size_t id) {
         fix_timestamps(context);
         FLB_LOG_INFO("Fixed timestamps in thread %zu", id);
 
-        parse_resources(resources_tree, context, "//link", "href");
-        parse_resources(resources_tree, context, "//script", "src");
-        parse_resources(resources_tree, context, "//img", "src");
-        parse_resources(resources_tree, context, "//video", "src");
+        resources_list = parse_resources(resources_list, context, "//link", "href");
+        resources_list = parse_resources(resources_list, context, "//script", "src");
+        resources_list = parse_resources(resources_list, context, "//img", "src");
+        resources_list = parse_resources(resources_list, context, "//video", "src");
 
-        if (resources_tree->root) {
-            flb_rbtree_foreach3(resources_tree, save_resource, curl_handle);
+        if (resources_list) {
+            flb_list_foreach3(resources_list, save_resource, curl_handle);
             FLB_LOG_INFO("Saved resources for thread %d", id);
         }
 
         save_thread(id, uint_max_digits, doc);
     }
 
-    download_thread_page_cleanup(memory.data, doc, context, resources_tree);
+    download_thread_page_cleanup(memory.data, doc, context, resources_list);
     return 0;
 }
 

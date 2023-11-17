@@ -55,7 +55,7 @@ static flb_list_node* parse_array(const char* ptr, size_t* counter) {
             token[token_len - 1] = '\0';
         }
 
-        list = flb_list_insert_front(list, token);
+        list = flb_list_insert_front(list, token, NULL);
         ++(*counter);
 
         token = strtok_r(NULL, delimiter, &save_ptr);
@@ -112,8 +112,8 @@ static void concat_fields(flb_list_node* list, char* dest, const size_t dest_siz
     dest[end_idx + 1] = '\0';
 
     while (list && end_idx > 0) {
-        const size_t value_offset = list->value_len - 1;
-        strncpy_no_trunc(&dest[end_idx - value_offset], list->value, list->value_len);
+        const size_t value_offset = list->key_len - 1;
+        strncpy_no_trunc(&dest[end_idx - value_offset], list->key, list->key_len);
 
         const size_t field_name_offset = value_offset + field_name_len;
         strncpy_no_trunc(&dest[end_idx - field_name_offset], field_name, field_name_len);
@@ -148,7 +148,7 @@ static void append_nodes_to_div(xmlNode* div_node, xmlNodeSet* nodes) {
 }
 
 static void insert_comments(char* html, xmlXPathContext* thread_context) {
-    const int parse_options = HTML_PARSE_NOBLANKS | HTML_PARSE_NOERROR | HTML_PARSE_NOWARNING;
+    const int parse_options = HTML_PARSE_NOBLANKS | HTML_PARSE_NOERROR | HTML_PARSE_NOWARNING;  // NOLINT
     xmlDoc* comments_doc = htmlReadDoc((xmlChar*) html, NULL, "UTF-8", parse_options);
     xmlXPathContext* comments_context = xmlXPathNewContext(comments_doc);
 
