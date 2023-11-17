@@ -71,6 +71,6 @@ int flb_chdir_out(void) {
         return 1;
     }
 
-    FLB_LOG_INFO("Current working directory: '%s'", dirname);
+    FLB_LOG_INFO("Current working directory: %s", dirname);
     return 0;
 }

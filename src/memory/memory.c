@@ -19,7 +19,7 @@ size_t flb_write_memory_callback(const void* contents, size_t size, size_t nmemb
         char* ptr = (char*) realloc(memory->data, new_size);
 
         if (!ptr) {
-            FLB_LOG_ERROR("Can not reallocate memory data");
+            FLB_LOG_ERROR("Can't reallocate memory data");
             return 0;
         }
 
