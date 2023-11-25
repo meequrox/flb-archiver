@@ -1,9 +1,11 @@
 #include <locale.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "download/thread.h"
 #include "filesystem/directories.h"
 #include "logger/logger.h"
+#include "version.h"
 
 void usage(char** argv) {
     printf("Usage: %s START_ID END_ID\n", argv[0]);
@@ -17,16 +19,16 @@ int main(int argc, char** argv) {
     }
 
 #ifdef NDEBUG
-    FLB_LOG_INFO("Release build");
+    FLB_LOG_INFO("Release build " FLB_VERSION " " __DATE__ " " __TIME__);
 #else
-    FLB_LOG_INFO("Debug build");
+    FLB_LOG_INFO("Debug build " FLB_VERSION " " __DATE__ " " __TIME__);
 #endif
 
     const int start = strtol(argv[1], NULL, 10);
     const int end = strtol(argv[2], NULL, 10);
 
     if (start < 1 || end < 1 || end < start) {
-        FLB_LOG_ERROR("Invalid ID range [%d, %d]", start, end);
+        FLB_LOG_ERROR("Invalid ID range [%d, %d]\n", start, end);
 
         usage(argv);
         return EXIT_FAILURE;

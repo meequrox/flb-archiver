@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.5)
 
-project(flb-archiver)
+# include/version.h
+set(FLB_VERSION_MAJOR 0)
+set(FLB_VERSION_MINOR 0)
+set(FLB_VERSION_PATCH 1)
+
+project(flb-archiver VERSION ${FLB_VERSION_MAJOR}.${FLB_VERSION_MINOR}.${FLB_VERSION_PATCH})
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)

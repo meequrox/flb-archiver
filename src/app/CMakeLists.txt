@@ -7,6 +7,10 @@ set_compile_options(${target_name})
 
 target_sources(${target_name} PRIVATE main.c)
 
+target_include_directories(${target_name} PUBLIC
+    ${PROJECT_SOURCE_DIR}/include
+)
+
 find_package(LibXml2 REQUIRED)
 find_package(CURL REQUIRED)
 
