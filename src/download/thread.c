@@ -4,6 +4,7 @@
 #include <libxml/xmlsave.h>
 #include <libxml2/libxml/xpathInternals.h>
 #include <locale.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "data_structures/linked_list.h"

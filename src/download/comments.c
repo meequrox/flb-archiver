@@ -2,6 +2,7 @@
 
 #include <libxml/HTMLparser.h>
 #include <libxml/xpathInternals.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "data_structures/linked_list.h"
