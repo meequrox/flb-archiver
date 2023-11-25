@@ -3,13 +3,13 @@ set(target_name logger)
 set(LIBRARY_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/include/${target_name})
 
 add_library(${target_name} STATIC
-    ${LIBRARY_INCLUDE_DIR}/colors.h
-    ${LIBRARY_INCLUDE_DIR}/logger.h
-    logger.c
+  ${LIBRARY_INCLUDE_DIR}/colors.h
+  ${LIBRARY_INCLUDE_DIR}/logger.h
+  logger.c
 )
 
 target_include_directories(${target_name} PUBLIC
-    ${PROJECT_SOURCE_DIR}/include
+  ${PROJECT_SOURCE_DIR}/include
 )
 
 include(CompileOptions)

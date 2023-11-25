@@ -3,16 +3,16 @@ set(target_name filesystem)
 set(LIBRARY_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/include/${target_name})
 
 add_library(${target_name} STATIC
-    ${LIBRARY_INCLUDE_DIR}/directories.h
-    directories.c
+  ${LIBRARY_INCLUDE_DIR}/directories.h
+  directories.c
 )
 
 target_include_directories(${target_name} PUBLIC
-    ${PROJECT_SOURCE_DIR}/include
+  ${PROJECT_SOURCE_DIR}/include
 )
 
 target_link_libraries(${target_name} PUBLIC
-    logger
+  logger
 )
 
 include(CompileOptions)
