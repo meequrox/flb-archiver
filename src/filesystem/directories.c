@@ -51,15 +51,7 @@ int flb_mkdirs(const char* path) {
 }
 
 int flb_chdir_out(void) {
-    time_t t = time(NULL);
-    struct tm tm;
-    struct tm* tm_ptr = localtime_r(&t, &tm);
-
-    const char format[] = "flb_%y.%m.%d_%H-%M";
-    const size_t format_size = sizeof(format) / sizeof(*format);
-
-    char dirname[format_size];
-    strftime(dirname, format_size, format, tm_ptr);
+    const char dirname[] = "flb_archive";
 
     if (flb_mkdir(dirname) != 0 && errno != EEXIST) {
         FLB_LOG_ERROR("%s: Can't create directory", dirname);
