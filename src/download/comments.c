@@ -71,7 +71,7 @@ static flb_list_node* get_comments_ids(xmlXPathContext* context, size_t* counter
         return NULL;
     }
 
-    const xmlChar* expr = (xmlChar*) "//script[contains(., '// Подгрузка комментариев')]";
+    const xmlChar* expr = (xmlChar*) "(//script[contains(., 'let posts = [')])[1]";
     xmlXPathObject* result = xmlXPathEvalExpression(expr, context);
     xmlNodeSet* nodes = result->nodesetval;
 
@@ -165,7 +165,7 @@ static void insert_comments(char* html, xmlXPathContext* thread_context) {
     xmlXPathObject* comments_result =
         xmlXPathEvalExpression((xmlChar*) "//div[@class='commentTop']", comments_context);
     xmlXPathObject* thread_result =
-        xmlXPathEvalExpression((xmlChar*) "//div[@class='comments']", thread_context);
+        xmlXPathEvalExpression((xmlChar*) "(//div[@class='comments'])[1]", thread_context);
 
     if (comments_result && thread_result) {
         xmlNodeSet* comments_nodes = comments_result->nodesetval;

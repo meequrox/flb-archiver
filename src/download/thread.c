@@ -25,7 +25,7 @@ static int page_is_thread(xmlXPathContext* context) {
     int nodes = 0;
 
     if (context) {
-        const xmlChar* expr = (xmlChar*) "//div[@class='postTop']";
+        const xmlChar* expr = (xmlChar*) "(//div[@class='postTop'])[1]";
         xmlXPathObject* result = xmlXPathEvalExpression(expr, context);
 
         nodes = result->nodesetval->nodeNr;
@@ -115,30 +115,43 @@ static int is_local_path(const char* path) {
     return path != strstr(path, "https://") && path != strstr(path, "http://");
 }
 
-static flb_list_node* parse_resources(flb_list_node* list, xmlXPathContext* context,
-                                      const char* xpath_expr, const char* find_attr) {
-    if (!context || !xpath_expr || !find_attr) {
+static flb_list_node* add_resource_to_list(flb_list_node* list, const char* attr_value) {
+    if (is_local_path(attr_value)) {
+        const size_t resource_url_size = kBaseUrlLen + strlen(attr_value) + 1;
+
+        char resource_url[resource_url_size];
+        snprintf(resource_url, resource_url_size, "%s%s", kBaseUrl, attr_value);
+
+        list = flb_list_insert_front(list, resource_url, attr_value);
+    }
+
+    return list;
+}
+
+static flb_list_node* parse_resources(flb_list_node* list, xmlXPathContext* context, char* xpath_expr) {
+    if (!context || !xpath_expr) {
         return NULL;
     }
 
     xmlXPathObject* result = xmlXPathEvalExpression((xmlChar*) xpath_expr, context);
     xmlNodeSet* nodes = result->nodesetval;
 
-    for (int i = 0; i < nodes->nodeNr; ++i) {
-        xmlChar* attr = xmlGetProp(nodes->nodeTab[i], (xmlChar*) find_attr);
-        char* attr_str = (char*) attr;
+    char* attr_start = strstr(xpath_expr, "[@");
+    char* attr_end = strstr(xpath_expr, "]");
 
-        if (attr && is_local_path(attr_str)) {
-            const size_t resource_url_size = kBaseUrlLen + strlen(attr_str) + 1;
+    if (attr_start && attr_end) {
+        attr_start += 2;
+        *attr_end = '\0';
 
-            char resource_url[resource_url_size];
-            snprintf(resource_url, resource_url_size, "%s%s", kBaseUrl, attr);
+        for (int i = 0; i < nodes->nodeNr; ++i) {
+            xmlChar* attr_value = xmlGetProp(nodes->nodeTab[i], (xmlChar*) attr_start);
 
-            list = flb_list_insert_front(list, resource_url, attr_str);
+            list = add_resource_to_list(list, (char*) attr_value);
 
-            xmlFree(attr);
-            attr = NULL;
+            xmlFree(attr_value);
         }
+
+        *attr_end = ']';
     }
 
     xmlXPathFreeObject(result);
@@ -222,10 +235,10 @@ static int download_thread_page(CURL* curl_handle, size_t id) {
         fix_timestamps(context);
         FLB_LOG_INFO("Fixed timestamps in thread %zu", id);
 
-        resources_list = parse_resources(resources_list, context, "//link", "href");
-        resources_list = parse_resources(resources_list, context, "//script", "src");
-        resources_list = parse_resources(resources_list, context, "//img", "src");
-        resources_list = parse_resources(resources_list, context, "//video", "src");
+        resources_list = parse_resources(resources_list, context, "//link[@href]");
+        resources_list = parse_resources(resources_list, context, "//script[@src]");
+        resources_list = parse_resources(resources_list, context, "//img[@src]");
+        resources_list = parse_resources(resources_list, context, "//video[@src]");
 
         if (resources_list) {
             flb_list_foreach3(resources_list, save_resource, curl_handle);
