@@ -4,12 +4,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <time.h>
 #include <unistd.h>
 
 #include "logger/logger.h"
 
 static int flb_mkdir(const char* path) {
+    // Expected != NULL: path
+
 #if defined(_WIN32)
     int rc = mkdir(path);
 #else
@@ -20,9 +21,7 @@ static int flb_mkdir(const char* path) {
 }
 
 int flb_mkdirs(const char* path) {
-    if (!path) {
-        return 1;
-    }
+    // Expected != NULL: path
 
     char* path_copy = strdup(path);
     if (!path_copy) {
