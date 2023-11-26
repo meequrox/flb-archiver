@@ -10,27 +10,29 @@
 #include "memory/memory.h"
 
 static char* get_array_start(xmlNode* node) {
-    if (node) {
-        // Example: ...постов\nlet posts = ["1","109","111","121","132","4375"];\n...
-        //                     ^            ^
-        //                start_ptr(1)      |
-        //                             start_ptr(2)
+    // Expected != NULL: node
 
-        const char needle[] = "let posts = [";
-        const size_t needle_len = sizeof(needle) / sizeof(*needle) - 1;
+    // Example: ...постов\nlet posts = ["1","109","111","121","132","4375"];\n...
+    //                     ^            ^
+    //                start_ptr(1)      |
+    //                             start_ptr(2)
 
-        const char* content = (char*) xmlNodeGetContent(node);
-        char* start_ptr = strstr(content, needle);
+    const char needle[] = "let posts = [";
+    const size_t needle_len = sizeof(needle) / sizeof(*needle) - 1;
 
-        if (start_ptr) {
-            return start_ptr + needle_len;
-        }
+    const char* content = (char*) xmlNodeGetContent(node);
+    char* start_ptr = strstr(content, needle);
+
+    if (start_ptr) {
+        return start_ptr + needle_len;
     }
 
     return NULL;
 }
 
 static flb_list_node* parse_array(const char* ptr, size_t* counter) {
+    // Expected != NULL: ptr, counter
+
     char* str = strdup(ptr);
     if (!str) {
         return NULL;
@@ -67,9 +69,7 @@ static flb_list_node* parse_array(const char* ptr, size_t* counter) {
 }
 
 static flb_list_node* get_comments_ids(xmlXPathContext* context, size_t* counter) {
-    if (!context || !counter) {
-        return NULL;
-    }
+    // Expected != NULL: context, counter
 
     const xmlChar* expr = (xmlChar*) "(//script[contains(., 'let posts = [')])[1]";
     xmlXPathObject* result = xmlXPathEvalExpression(expr, context);
@@ -92,7 +92,9 @@ static flb_list_node* get_comments_ids(xmlXPathContext* context, size_t* counter
 }
 
 void strncpy_no_trunc(char* dest, const char* src, size_t n) {
-    if (dest && src && n) {
+    // Expected != NULL: dest
+
+    if (src && n) {
         size_t i = 0;
 
         while (i < n && src[i] != '\0') {
@@ -107,16 +109,25 @@ void strncpy_no_trunc(char* dest, const char* src, size_t n) {
     }
 }
 
-static void concat_fields(flb_list_node* list, char* dest, const size_t dest_size,
-                          const char* field_name, const size_t field_name_len) {
-    size_t end_idx = dest_size - 2;
+static int concat_fields(flb_list_node* list, char* dest, const size_t dest_size, const char* field_name,
+                         const size_t field_name_len) {
+    // Expected != NULL: dest, field_name
+    // Expected != 0: dest_size, field_name_len
+
+    if (dest_size < field_name_len + 2) {
+        FLB_LOG_ERROR("Destination buffer size is too small");
+        dest[dest_size - 1] = '\0';
+        return dest_size - 1;
+    }
+
+    int end_idx = dest_size - 2;
     dest[end_idx + 1] = '\0';
 
-    while (list && end_idx > 0) {
-        const size_t value_offset = list->key_len - 1;
+    while (list && end_idx > (int) field_name_len) {
+        const int value_offset = list->key_len - 1;
         strncpy_no_trunc(&dest[end_idx - value_offset], list->key, list->key_len);
 
-        const size_t field_name_offset = value_offset + field_name_len;
+        const int field_name_offset = value_offset + field_name_len;
         strncpy_no_trunc(&dest[end_idx - field_name_offset], field_name, field_name_len);
 
         end_idx = end_idx - field_name_offset - 1;
@@ -126,17 +137,13 @@ static void concat_fields(flb_list_node* list, char* dest, const size_t dest_siz
         list = list->next;
     }
 
-    while (end_idx > 0) {
-        dest[end_idx] = '_';
-        --end_idx;
-    }
-
-    if (dest[0] != '&') {
-        dest[0] = '_';
-    }
+    dest[end_idx + 1] = '_';
+    return end_idx + 2;
 }
 
 static void append_nodes_to_div(xmlNode* div_node, xmlNodeSet* nodes) {
+    // Expected != NULL: div_node, nodes
+
     xmlNode* last_child = div_node->last;
 
     for (int i = 0; i < nodes->nodeNr; i++) {
@@ -149,6 +156,8 @@ static void append_nodes_to_div(xmlNode* div_node, xmlNodeSet* nodes) {
 }
 
 static void insert_comments(char* html, xmlXPathContext* thread_context) {
+    // Expected != NULL: html, context
+
     const int parse_options = HTML_PARSE_NOBLANKS | HTML_PARSE_NOERROR | HTML_PARSE_NOWARNING;  // NOLINT
     xmlDoc* comments_doc = htmlReadDoc((xmlChar*) html, NULL, "UTF-8", parse_options);
     xmlXPathContext* comments_context = xmlXPathNewContext(comments_doc);
@@ -186,7 +195,18 @@ static void insert_comments(char* html, xmlXPathContext* thread_context) {
     xmlXPathFreeObject(thread_result);
 }
 
+void include_comments_setup(CURL* curl_handle, const char* url, void* memory, const char* post_fields) {
+    // Expected != NULL: curl_handle, url, memory, post_fields
+
+    curl_easy_setopt(curl_handle, CURLOPT_URL, url);
+    curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, flb_write_memory_callback);
+    curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void*) &memory);
+    curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, post_fields);
+}
+
 int include_comments(CURL* curl_handle, xmlXPathContext* context) {
+    // Expected != NULL: curl_handle, context
+
     size_t counter = 0;
     flb_list_node* ids_list = get_comments_ids(context, &counter);
 
@@ -201,9 +221,15 @@ int include_comments(CURL* curl_handle, xmlXPathContext* context) {
     const size_t post_fields_size = counter * (field_name_len + uint_max_digits + 1) + 1;
 
     // "currentPosts[]=6001&currentPosts[]=6002"
-    char post_fields[post_fields_size];
-    concat_fields(ids_list, post_fields, post_fields_size, field_name, field_name_len);
-    char* post_fields_ptr = strchr(post_fields, '&') + 1;
+    char* post_fields = malloc(post_fields_size * sizeof(*post_fields));
+    if (!post_fields) {
+        FLB_LOG_ERROR("Can't allocate POSTFIELDS data");
+        return 1;
+    }
+
+    const int post_fields_offset =
+        concat_fields(ids_list, post_fields, post_fields_size, field_name, field_name_len);
+    char* post_fields_ptr = post_fields + post_fields_offset;
 
     flb_list_free(ids_list);
     ids_list = NULL;
@@ -220,13 +246,9 @@ int include_comments(CURL* curl_handle, xmlXPathContext* context) {
     char url[url_size];
     snprintf(url, url_size, "%s%s", kBaseUrl, script_name);
 
-    curl_easy_setopt(curl_handle, CURLOPT_URL, url);
-    curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, flb_write_memory_callback);
-    curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void*) &memory);
-
-    curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, post_fields_ptr);
+    include_comments_setup(curl_handle, url, &memory, post_fields_ptr);
     CURLcode response = curl_easy_perform(curl_handle);
-    curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, NULL);
+    // Need to reset cURL handler after that
 
     if (response != CURLE_OK) {
         FLB_LOG_ERROR("Can't fetch %s: %s", url, curl_easy_strerror(response));
@@ -237,5 +259,6 @@ int include_comments(CURL* curl_handle, xmlXPathContext* context) {
     insert_comments(memory.data, context);
 
     free(memory.data);
+    free(post_fields);
     return 0;
 }

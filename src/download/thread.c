@@ -22,35 +22,30 @@ const char kFirefoxUserAgent[] =
 const char kTimeLocale[] = "en_US.UTF-8";
 
 static int page_is_thread(xmlXPathContext* context) {
-    int nodes = 0;
+    // Expected != NULL: context
 
-    if (context) {
-        const xmlChar* expr = (xmlChar*) "(//div[@class='postTop'])[1]";
-        xmlXPathObject* result = xmlXPathEvalExpression(expr, context);
+    const xmlChar* expr = (xmlChar*) "(//div[@class='postTop'])[1]";
+    xmlXPathObject* result = xmlXPathEvalExpression(expr, context);
+    int nodes = result->nodesetval->nodeNr;
 
-        nodes = result->nodesetval->nodeNr;
-        xmlXPathFreeObject(result);
-    }
-
+    xmlXPathFreeObject(result);
     return nodes;
 }
 
 static void convert_timestamp(const char* timestamp_str, char* dest, size_t dest_size) {
-    if (timestamp_str && dest) {
-        const int timestamp_base = 10;
-        time_t timestamp = strtoull(timestamp_str, NULL, timestamp_base);
+    // Expected != NULL: timestamp_str, dest
 
-        struct tm tm;
-        struct tm* tm_ptr = gmtime_r(&timestamp, &tm);
+    const int timestamp_base = 10;
+    time_t timestamp = strtoull(timestamp_str, NULL, timestamp_base);
 
-        strftime(dest, dest_size, "%e %b %Y %H:%M", tm_ptr);
-    }
+    struct tm tm;
+    struct tm* tm_ptr = gmtime_r(&timestamp, &tm);
+
+    strftime(dest, dest_size, "%e %b %Y %H:%M", tm_ptr);
 }
 
 static int fix_timestamps(xmlXPathContext* context) {
-    if (!context) {
-        return 1;
-    }
+    // Expected != NULL: context
 
     const xmlChar* expr = (xmlChar*) "//div[@class='time']";
     xmlXPathObject* result = xmlXPathEvalExpression(expr, context);
@@ -76,12 +71,23 @@ static int fix_timestamps(xmlXPathContext* context) {
     return 0;
 }
 
+static void save_resource_setup(CURL* curl_handle, const char* url, void* file) {
+    // Expected != NULL: curl_handle, url, file
+
+    curl_easy_setopt(curl_handle, CURLOPT_URL, url);
+    curl_easy_setopt(curl_handle, CURLOPT_FOLLOWLOCATION, 1);
+    curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, flb_write_file_callback);
+    curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, file);
+}
+
 static int save_resource(CURL* curl_handle, const char* url, const char* filename) {
-    if (!curl_handle || !url || !filename) {
+    // Expected != NULL: curl_handle, url
+
+    if (!filename) {
         return 1;
     }
 
-    if (access(filename, F_OK) == 0) {
+    if (!filename || access(filename, F_OK) == 0) {
         return 0;
     }
 
@@ -93,15 +99,9 @@ static int save_resource(CURL* curl_handle, const char* url, const char* filenam
         return 1;
     }
 
-    curl_easy_setopt(curl_handle, CURLOPT_URL, url);
-    curl_easy_setopt(curl_handle, CURLOPT_FOLLOWLOCATION, 1);
-    curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, flb_write_file_callback);
-    curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, file);
-
+    save_resource_setup(curl_handle, url, file);
     CURLcode response = curl_easy_perform(curl_handle);
-
     fclose(file);
-    file = NULL;
 
     if (response != CURLE_OK) {
         FLB_LOG_ERROR("Can't fetch '%s': %s", url, curl_easy_strerror(response));
@@ -129,9 +129,7 @@ static flb_list_node* add_resource_to_list(flb_list_node* list, const char* attr
 }
 
 static flb_list_node* parse_resources(flb_list_node* list, xmlXPathContext* context, char* xpath_expr) {
-    if (!context || !xpath_expr) {
-        return NULL;
-    }
+    // Expected != NULL: context, xpath_expr
 
     xmlXPathObject* result = xmlXPathEvalExpression((xmlChar*) xpath_expr, context);
     xmlNodeSet* nodes = result->nodesetval;
@@ -167,25 +165,52 @@ static void download_thread_page_cleanup(char* data, xmlDoc* doc, xmlXPathContex
 }
 
 static void save_thread(size_t id, size_t max_id_len, xmlDoc* doc) {
-    if (doc) {
-        const char extension[] = ".html";
+    // Expected != NULL: doc
 
-        const size_t filename_size = max_id_len + sizeof(extension) / sizeof(*extension);
-        char filename[filename_size];
-        snprintf(filename, filename_size, "%zu%s", id, extension);
+    const char extension[] = ".html";
 
-        const int save_options =
-            XML_SAVE_FORMAT | XML_SAVE_NO_DECL | XML_SAVE_NO_EMPTY | XML_SAVE_AS_HTML;  // NOLINT
-        xmlSaveCtxt* saveCtxt = xmlSaveToFilename(filename, "UTF-8", save_options);
+    const size_t filename_size = max_id_len + sizeof(extension) / sizeof(*extension);
+    char filename[filename_size];
+    snprintf(filename, filename_size, "%zu%s", id, extension);
 
-        xmlSaveDoc(saveCtxt, doc);
-        xmlSaveClose(saveCtxt);
+    const int save_options =
+        XML_SAVE_FORMAT | XML_SAVE_NO_DECL | XML_SAVE_NO_EMPTY | XML_SAVE_AS_HTML;  // NOLINT
+    xmlSaveCtxt* saveCtxt = xmlSaveToFilename(filename, "UTF-8", save_options);
 
-        FLB_LOG_INFO("Saved thread %zu to file '%s'", id, filename);
+    xmlSaveDoc(saveCtxt, doc);
+    xmlSaveClose(saveCtxt);
+
+    FLB_LOG_INFO("Saved thread %zu to file '%s'", id, filename);
+}
+
+static void download_thread_page_setup(CURL* curl_handle, const char* url, void* memory, int mode) {
+    // Expected != NULL: curl_handle
+    // mode: 0 - Set options to download thread without reset
+    //       1 - Reset then set UA
+    //       2 - Reset then set UA and options to download thread
+
+    switch (mode) {
+        case 1:
+            curl_easy_reset(curl_handle);
+            curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, kFirefoxUserAgent);
+            break;
+        case 2:
+            curl_easy_reset(curl_handle);
+            curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, kFirefoxUserAgent);
+            // fallthrough
+        case 0:
+            curl_easy_setopt(curl_handle, CURLOPT_URL, url);
+            curl_easy_setopt(curl_handle, CURLOPT_FOLLOWLOCATION, 0);
+            curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, flb_write_memory_callback);
+            curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, memory);
+        default:
+            break;
     }
 }
 
 static int download_thread_page(CURL* curl_handle, size_t id) {
+    // Expected != NULL: curl_handle
+
     const char query_base[] = "thread.php?id=";
     const size_t query_base_size = sizeof(query_base) / sizeof(*query_base);
 
@@ -198,11 +223,7 @@ static int download_thread_page(CURL* curl_handle, size_t id) {
     const size_t initial_data_size = 256 * 1024 + 1;
     flb_memstruct_t memory = {(char*) malloc(initial_data_size), 0, initial_data_size};
 
-    curl_easy_setopt(curl_handle, CURLOPT_URL, thread_url);
-    curl_easy_setopt(curl_handle, CURLOPT_FOLLOWLOCATION, 0);
-    curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, flb_write_memory_callback);
-    curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void*) &memory);
-
+    download_thread_page_setup(curl_handle, thread_url, &memory, 0);
     CURLcode response = curl_easy_perform(curl_handle);
 
     if (response != CURLE_OK) {
@@ -229,8 +250,7 @@ static int download_thread_page(CURL* curl_handle, size_t id) {
         FLB_LOG_INFO_LB("Processing thread %zu (URL '%s')", id, thread_url);
 
         include_comments(curl_handle, context);
-        curl_easy_reset(curl_handle);
-        curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, kFirefoxUserAgent);
+        download_thread_page_setup(curl_handle, NULL, NULL, 1);
 
         fix_timestamps(context);
         FLB_LOG_INFO("Fixed timestamps in thread %zu", id);
