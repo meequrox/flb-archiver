@@ -200,7 +200,7 @@ void include_comments_setup(CURL* curl_handle, const char* url, void* memory, co
 
     curl_easy_setopt(curl_handle, CURLOPT_URL, url);
     curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, flb_write_memory_callback);
-    curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void*) &memory);
+    curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, memory);
     curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, post_fields);
 }
 
