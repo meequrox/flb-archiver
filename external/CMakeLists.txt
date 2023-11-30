@@ -5,3 +5,7 @@ if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
 endif()
 
 add_subdirectory(libxml2)
+
+if(WIN32)
+  add_subdirectory(curl)
+endif()
