@@ -11,7 +11,7 @@ ColumnLimit: 105
 CompactNamespaces: true
 DerivePointerAlignment: false
 EmptyLineBeforeAccessModifier: Always
-IndentExternBlock: Indent
+IndentExternBlock: NoIndent
 IndentPPDirectives: BeforeHash
 IndentWidth: 4
 InsertBraces: true

@@ -1,4 +1,5 @@
 #include "logger/logger.h"
+#include "logger/colors.h"
 
 #include <stdarg.h>
 #include <stddef.h>
