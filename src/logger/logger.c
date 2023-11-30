@@ -1,9 +1,10 @@
 #include "logger/logger.h"
-#include "logger/colors.h"
 
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
+
+#include "logger/colors.h"
 
 static int calculate_buffer_size(const char* format, va_list args) {
     va_list args_copy;
