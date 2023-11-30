@@ -27,4 +27,5 @@ else()
   message("clang-tidy found:\n" ${CLANG_TIDY_VERSION})
 endif()
 
+add_subdirectory(external)
 add_subdirectory(src)
