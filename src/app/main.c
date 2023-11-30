@@ -19,7 +19,12 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-#ifdef NDEBUG
+#if defined(_WIN32)
+    // Terminal color fix
+    system("");  // NOLINT
+#endif
+
+#if defined(NDEBUG)
     FLB_LOG_INFO("Release build " FLB_VERSION " " __DATE__ " " __TIME__);
 #else
     FLB_LOG_INFO("Debug build " FLB_VERSION " " __DATE__ " " __TIME__);
