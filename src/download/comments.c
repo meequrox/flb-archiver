@@ -1,7 +1,12 @@
 #include "download/comments.h"
 
+#include <curl/curl.h>
+#include <curl/easy.h>
 #include <libxml/HTMLparser.h>
+#include <libxml/tree.h>
+#include <libxml/xpath.h>
 #include <libxml/xpathInternals.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 

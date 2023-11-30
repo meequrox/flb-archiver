@@ -1,11 +1,20 @@
 #include "download/thread.h"
 
+#include <curl/curl.h>
+#include <curl/easy.h>
 #include <libxml/HTMLparser.h>
+#include <libxml/tree.h>
+#include <libxml/xmlmemory.h>
 #include <libxml/xmlsave.h>
+#include <libxml/xpath.h>
 #include <libxml/xpathInternals.h>
 #include <locale.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include <unistd.h>
 
 #include "data_structures/linked_list.h"
 #include "download/comments.h"
@@ -39,9 +48,15 @@ static void convert_timestamp(const char* timestamp_str, char* dest, size_t dest
     time_t timestamp = strtoull(timestamp_str, NULL, timestamp_base);
 
     struct tm tm;
-    struct tm* tm_ptr = gmtime_r(&timestamp, &tm);
+    struct tm* tm_ptr = &tm;
 
-    strftime(dest, dest_size, "%e %b %Y %H:%M", tm_ptr);
+#if defined(_WIN32)
+    gmtime_s(&tm, &timestamp);
+#else
+    tm_ptr = gmtime_r(&timestamp, &tm);
+#endif
+
+    strftime(dest, dest_size, "%d %b %Y %H:%M", tm_ptr);
 }
 
 static int fix_timestamps(xmlXPathContext* context) {
@@ -75,6 +90,7 @@ static void save_resource_setup(CURL* curl_handle, const char* url, void* file) 
     // Expected != NULL: curl_handle, url, file
 
     curl_easy_setopt(curl_handle, CURLOPT_URL, url);
+    curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT, 10);
     curl_easy_setopt(curl_handle, CURLOPT_FOLLOWLOCATION, 1);
     curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, flb_write_file_callback);
     curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, file);
@@ -93,7 +109,19 @@ static int save_resource(CURL* curl_handle, const char* url, const char* filenam
 
     flb_mkdirs(filename);
 
-    FILE* file = fopen(filename, "we");
+    int is_binary_file = 0;
+    FILE* file = NULL;
+
+#if defined(_WIN32)
+    is_binary_file = strstr(filename, "img/") == filename || strstr(filename, "media/") == filename;
+#endif
+
+    if (is_binary_file) {
+        file = fopen(filename, "wb");
+    } else {
+        file = fopen(filename, "w");
+    }
+
     if (!file) {
         FLB_LOG_ERROR("%s: Can't open file", filename);
         return 1;
@@ -155,7 +183,12 @@ static void save_thread(size_t id, size_t max_id_len, xmlDoc* doc) {
 
     const size_t filename_size = max_id_len + sizeof(extension) / sizeof(*extension);
     char filename[filename_size];
+
+#if defined(_WIN32)
+    snprintf(filename, filename_size, "%llu%s", id, extension);
+#else
     snprintf(filename, filename_size, "%zu%s", id, extension);
+#endif
 
     const int save_options =
         XML_SAVE_FORMAT | XML_SAVE_NO_DECL | XML_SAVE_NO_EMPTY | XML_SAVE_AS_HTML;  // NOLINT
@@ -164,7 +197,11 @@ static void save_thread(size_t id, size_t max_id_len, xmlDoc* doc) {
     xmlSaveDoc(saveCtxt, doc);
     xmlSaveClose(saveCtxt);
 
+#if defined(_WIN32)
+    FLB_LOG_INFO("Saved thread %llu to file '%s'", id, filename);
+#else
     FLB_LOG_INFO("Saved thread %zu to file '%s'", id, filename);
+#endif
 }
 
 static void download_thread_page_setup(CURL* curl_handle, const char* url, void* memory, int mode) {
@@ -176,10 +213,12 @@ static void download_thread_page_setup(CURL* curl_handle, const char* url, void*
     switch (mode) {
         case 1:
             curl_easy_reset(curl_handle);
+            curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT, 8);
             curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, kFirefoxUserAgent);
             break;
         case 2:
             curl_easy_reset(curl_handle);
+            curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT, 8);
             curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, kFirefoxUserAgent);
             // fallthrough
         case 0:
@@ -202,7 +241,12 @@ static int download_thread_page(CURL* curl_handle, size_t id) {
     const size_t thread_url_size = kBaseUrlLen + uint_max_digits + query_base_size;
 
     char thread_url[thread_url_size];
+
+#if defined(_WIN32)
+    snprintf(thread_url, thread_url_size, "%s%s%llu", kBaseUrl, query_base, id);
+#else
     snprintf(thread_url, thread_url_size, "%s%s%zu", kBaseUrl, query_base, id);
+#endif
 
     const size_t initial_data_size = 256 * 1024 + 1;
     flb_memstruct_t memory = {(char*) malloc(initial_data_size), 0, initial_data_size};
@@ -261,6 +305,7 @@ int flb_download_threads(size_t start, size_t end, useconds_t interval) {
     CURL* curl_handle = curl_easy_init();
 
     if (curl_handle) {
+        curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT, 8);
         curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, kFirefoxUserAgent);
 
         // TODO(99): CHECK FOR FUTURE THREADS

@@ -14,14 +14,16 @@ target_include_directories(${target_name} PUBLIC
   ${CMAKE_BINARY_DIR}/_deps/libxml2-src/include
 )
 
-find_package(CURL REQUIRED)
+if(NOT WIN32)
+  find_package(CURL REQUIRED)
+endif()
 
 target_link_libraries(${target_name} PUBLIC
   memory
   filesystem
   data_structures
   LibXml2::LibXml2
-  ${CURL_LIBRARIES}
+  CURL::libcurl
 )
 
 include(CompileOptions)
