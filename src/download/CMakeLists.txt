@@ -11,9 +11,9 @@ add_library(${target_name} STATIC
 
 target_include_directories(${target_name} PUBLIC
   ${PROJECT_SOURCE_DIR}/include
+  ${CMAKE_BINARY_DIR}/_deps/libxml2-src/include
 )
 
-find_package(LibXml2 REQUIRED)
 find_package(CURL REQUIRED)
 
 target_link_libraries(${target_name} PUBLIC
