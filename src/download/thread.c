@@ -2,7 +2,7 @@
 
 #include <libxml/HTMLparser.h>
 #include <libxml/xmlsave.h>
-#include <libxml2/libxml/xpathInternals.h>
+#include <libxml/xpathInternals.h>
 #include <locale.h>
 #include <stdlib.h>
 #include <string.h>
