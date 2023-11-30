@@ -15,7 +15,12 @@ flb_list_node* flb_list_create_node(const char* key, const char* value) {
     }
 
     const size_t key_len = strlen(key);
+
+#if defined(_WIN32)
+    char* key_copy = _strdup(key);
+#else
     char* key_copy = strndup(key, key_len);
+#endif
 
     if (!key_copy) {
         free(node);
