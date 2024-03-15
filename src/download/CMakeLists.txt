@@ -18,12 +18,16 @@ if(NOT WIN32)
   find_package(CURL REQUIRED)
 endif()
 
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+
 target_link_libraries(${target_name} PUBLIC
   memory
   filesystem
   data_structures
   LibXml2::LibXml2
   CURL::libcurl
+  Threads::Threads
 )
 
 include(CompileOptions)

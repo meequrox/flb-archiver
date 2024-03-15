@@ -2,17 +2,19 @@
 
 #include <curl/curl.h>
 #include <curl/easy.h>
+#include <errno.h>
 #include <libxml/HTMLparser.h>
 #include <libxml/tree.h>
 #include <libxml/xmlmemory.h>
 #include <libxml/xmlsave.h>
 #include <libxml/xpath.h>
 #include <libxml/xpathInternals.h>
-#include <locale.h>
+#include <pthread.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/sysinfo.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -109,22 +111,27 @@ static int save_resource(CURL* curl_handle, const char* url, const char* filenam
 
     flb_mkdirs(filename);
 
-    int is_binary_file = 0;
-    FILE* file = NULL;
-
 #if defined(_WIN32)
-    is_binary_file = strstr(filename, "img/") == filename || strstr(filename, "media/") == filename;
+    const int is_binary_file =
+        strstr(filename, "img/") == filename || strstr(filename, "media/") == filename;
+#else
+    const int is_binary_file = 0;
 #endif
 
+    FILE* file = NULL;
+
     if (is_binary_file) {
-        file = fopen(filename, "wb");
+        file = fopen(filename, "wbx");
     } else {
-        file = fopen(filename, "w");
+        file = fopen(filename, "wx");
     }
 
     if (!file) {
-        FLB_LOG_ERROR("%s: Can't open file", filename);
-        return 1;
+        char errbuf[128] = {0};
+        strerror_r(errno, errbuf, sizeof(errbuf) / sizeof(*errbuf));
+
+        FLB_LOG_ERROR("%s: %s", filename, errbuf);
+        return errno != EEXIST;
     }
 
     save_resource_setup(curl_handle, url, file);
@@ -132,10 +139,13 @@ static int save_resource(CURL* curl_handle, const char* url, const char* filenam
     fclose(file);
 
     if (response != CURLE_OK) {
+        unlink(filename);
+
         FLB_LOG_ERROR("Can't fetch '%s': %s", url, curl_easy_strerror(response));
         return 1;
     }
 
+    FLB_LOG_INFO("Created new resource file: %s", filename);
     return 0;
 }
 
@@ -300,33 +310,76 @@ static int download_thread_page(CURL* curl_handle, size_t id) {
     return 0;
 }
 
-int flb_download_threads(size_t start, size_t end, useconds_t interval) {
-    curl_global_init(CURL_GLOBAL_ALL);
-    CURL* curl_handle = curl_easy_init();
+typedef struct {
+    size_t start;
+    size_t end;
+    useconds_t interval;
+} WorkerOpts;
 
+void* flb_download_worker(void* arg) {
+    WorkerOpts* opts = (WorkerOpts*) arg;
+    FLB_LOG_INFO("Processing threads range [%zu; %zu] (interval %ld)", opts->start, opts->end,
+                 opts->interval);
+
+    CURL* curl_handle = curl_easy_init();
     if (curl_handle) {
         curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT, 8);
         curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, kFirefoxUserAgent);
 
-        // TODO(99): CHECK FOR FUTURE THREADS
-        if (strcmp(setlocale(LC_TIME, NULL), kTimeLocale) != 0) {
-            FLB_LOG_ERROR("Current time locale is %s, not %s...", setlocale(LC_TIME, NULL), kTimeLocale);
-            return 2;
-        }
-
-        for (size_t id = start; id <= end; ++id) {
-            if (download_thread_page(curl_handle, id) != 0) {
-                FLB_LOG_ERROR("Can't download thread %zu, exiting...", id);
+        for (size_t tid = opts->start; tid <= opts->end; ++tid) {
+            if (download_thread_page(curl_handle, tid) != 0) {
+                FLB_LOG_ERROR("Can't download thread %zu, exiting...", tid);
                 break;
             }
 
-            usleep(interval);
+            usleep(opts->interval);
         }
     } else {
         FLB_LOG_ERROR("Can't init cURL handle");
     }
 
     curl_easy_cleanup(curl_handle);
+    pthread_exit(NULL);
+}
+
+int flb_download_threads(size_t start, size_t end, useconds_t interval) {
+    curl_global_init(CURL_GLOBAL_ALL);
+
+    const int workers_count = get_nprocs();
+    pthread_t workers_ids[workers_count];
+    WorkerOpts* workers_opts[workers_count];
+
+    const size_t flb_threads_count = end - start + 1;
+    const size_t flb_threads_per_worker = flb_threads_count / workers_count;
+    FLB_LOG_INFO("CPUs: %d; FLB threads: %zu; TPW: %zu (avg)", workers_count, flb_threads_count,
+                 flb_threads_per_worker);
+
+    for (int w = 0; w < workers_count; ++w) {
+        WorkerOpts* opts = malloc(sizeof(WorkerOpts));
+        workers_opts[w] = opts;
+
+        opts->start = start + w * flb_threads_per_worker;
+        opts->end = start + (w + 1) * flb_threads_per_worker - 1;
+        opts->interval = interval;
+
+        if (w == workers_count - 1) {
+            size_t rem = flb_threads_count % workers_count;
+            opts->end += rem;
+        }
+
+        pthread_t ptid = 0;
+        pthread_create(&ptid, NULL, flb_download_worker, opts);
+        workers_ids[w] = ptid;
+    }
+
+    for (int w = 0; w < workers_count; ++w) {
+        pthread_join(workers_ids[w], NULL);
+    }
+
+    for (int w = 0; w < workers_count; ++w) {
+        free(workers_opts[w]);
+    }
+
     curl_global_cleanup();
     return 0;
 }

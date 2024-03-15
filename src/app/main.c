@@ -40,7 +40,7 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    FLB_LOG_INFO("ID range [%d, %d]", start, end);
+    FLB_LOG_INFO("ID range [%d; %d]", start, end);
 
     const size_t interval_ms = 150;
     const size_t ms_to_us_multiplier = 1000;
