@@ -1,22 +1,31 @@
 cmake_minimum_required(VERSION 3.5)
 
-project(flb-archiver LANGUAGES C)
-set(CMAKE_C_STANDARD 11)
+file(READ "include/version.h" FLB_VERSION_HEADER)
 
-add_executable(flb-archiver src/main.c)
-target_sources(flb-archiver PRIVATE
-    src/linkpool.h
-    src/memory.h
+string(REGEX MATCH "#define FLB_VERSION_MAJOR \"([0-9]*)\"" _ ${FLB_VERSION_HEADER})
+set(FLB_VERSION_MAJOR ${CMAKE_MATCH_1})
 
-    src/linkpool.c
-    src/memory.c
-)
+string(REGEX MATCH "#define FLB_VERSION_MINOR \"([0-9]*)\"" _ ${FLB_VERSION_HEADER})
+set(FLB_VERSION_MINOR ${CMAKE_MATCH_1})
 
-find_package(LibXml2 REQUIRED)
-target_link_libraries(flb-archiver PUBLIC LibXml2::LibXml2)
+string(REGEX MATCH "#define FLB_VERSION_PATCH \"([0-9]*)\"" _ ${FLB_VERSION_HEADER})
+set(FLB_VERSION_PATCH ${CMAKE_MATCH_1})
 
-find_package(CURL REQUIRED)
-target_link_libraries(flb-archiver PUBLIC CURL::libcurl)
+project(flb-archiver VERSION ${FLB_VERSION_MAJOR}.${FLB_VERSION_MINOR}.${FLB_VERSION_PATCH})
 
-install(TARGETS flb-archiver
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
+
+find_program(CLANG_TIDY_EXE NAMES clang-tidy)
+if(NOT CLANG_TIDY_EXE)
+  message(WARNING "clang-tidy not found")
+else()
+  execute_process(COMMAND
+    ${CLANG_TIDY_EXE} --version
+    OUTPUT_VARIABLE CLANG_TIDY_VERSION
+  )
+  message("clang-tidy found:\n" ${CLANG_TIDY_VERSION})
+endif()
+
+add_subdirectory(external)
+add_subdirectory(src)

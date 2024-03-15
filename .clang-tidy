@@ -1,0 +1,22 @@
+---
+Checks: >
+  clang-diagnostic-*,
+  clang-analyzer-*,
+  *,
+  -altera-*,
+  -fuchsia-*,
+  -llvmlibc-*,
+  -llvm-header-guard,
+  -modernize-use-nodiscard,
+  -modernize-use-trailing-return-type,
+  -readability-identifier-length,
+  -readability-magic-numbers,
+  -*-easily-swappable-parameters,
+  -readability-implicit-bool-conversion,
+  -*-narrowing-conversions,
+  -cert-err33-c
+WarningsAsErrors: '*'
+HeaderFilterRegex: '.*/(data_structures|download|filesystem|logger|memory|app)/'
+AnalyzeTemporaryDtors: false
+FormatStyle: file
+...
