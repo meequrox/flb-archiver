@@ -11,8 +11,8 @@ set(LIBXML2_WITH_ZLIB OFF)
 set(LIBXML2_WITH_SAX1 OFF)
 
 # https://github.com/GNOME/libxml2/tags
-set(libxml2_version 2.12.1)
-set(libxml2_sha256 9815c91fcfab336b1e2a6ba506cf38c5baa6817c9ed4f30211cbc9011406d9fb)
+set(libxml2_version 2.12.6)
+set(libxml2_sha256 b6ce34641cc2f3084289d5ac3cd49e8892394591a3df8c05f19d633f4e6058bc)
 
 FetchContent_Declare(libxml2
   URL https://github.com/GNOME/libxml2/archive/refs/tags/v${libxml2_version}.tar.gz
