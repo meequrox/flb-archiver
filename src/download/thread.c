@@ -1,8 +1,13 @@
 #include "download/thread.h"
 
+#if defined(_WIN32)
+    #include <windows.h>
+#endif
+
 #include <curl/curl.h>
 #include <curl/easy.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <libxml/HTMLparser.h>
 #include <libxml/tree.h>
 #include <libxml/xmlmemory.h>
@@ -14,7 +19,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/sysinfo.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -128,7 +132,12 @@ static int save_resource(CURL* curl_handle, const char* url, const char* filenam
 
     if (!file) {
         char errbuf[128] = {0};
-        strerror_r(errno, errbuf, sizeof(errbuf) / sizeof(*errbuf));
+
+#if defined(_WIN32)
+        strerror_s(errbuf, sizeof(errbuf), errno);
+#else
+        strerror_r(errno, errbuf, sizeof(errbuf));
+#endif
 
         FLB_LOG_ERROR("%s: %s", filename, errbuf);
         return errno != EEXIST;
@@ -194,11 +203,7 @@ static void save_thread(size_t id, size_t max_id_len, xmlDoc* doc) {
     const size_t filename_size = max_id_len + sizeof(extension) / sizeof(*extension);
     char filename[filename_size];
 
-#if defined(_WIN32)
-    snprintf(filename, filename_size, "%llu%s", id, extension);
-#else
-    snprintf(filename, filename_size, "%zu%s", id, extension);
-#endif
+    snprintf(filename, filename_size, "%" PRIuPTR "%s", id, extension);
 
     const int save_options =
         XML_SAVE_FORMAT | XML_SAVE_NO_DECL | XML_SAVE_NO_EMPTY | XML_SAVE_AS_HTML;  // NOLINT
@@ -207,11 +212,7 @@ static void save_thread(size_t id, size_t max_id_len, xmlDoc* doc) {
     xmlSaveDoc(saveCtxt, doc);
     xmlSaveClose(saveCtxt);
 
-#if defined(_WIN32)
-    FLB_LOG_INFO("Saved thread %llu to file '%s'", id, filename);
-#else
-    FLB_LOG_INFO("Saved thread %zu to file '%s'", id, filename);
-#endif
+    FLB_LOG_INFO("Saved thread %" PRIuPTR " to file '%s'", id, filename);
 }
 
 static void download_thread_page_setup(CURL* curl_handle, const char* url, void* memory, int mode) {
@@ -252,11 +253,7 @@ static int download_thread_page(CURL* curl_handle, size_t id) {
 
     char thread_url[thread_url_size];
 
-#if defined(_WIN32)
-    snprintf(thread_url, thread_url_size, "%s%s%llu", kBaseUrl, query_base, id);
-#else
-    snprintf(thread_url, thread_url_size, "%s%s%zu", kBaseUrl, query_base, id);
-#endif
+    snprintf(thread_url, thread_url_size, "%s%s%" PRIuPTR, kBaseUrl, query_base, id);
 
     const size_t initial_data_size = 256 * 1024 + 1;
     flb_memstruct_t memory = {(char*) malloc(initial_data_size), 0, initial_data_size};
@@ -285,13 +282,13 @@ static int download_thread_page(CURL* curl_handle, size_t id) {
     flb_list_node* resources_list = NULL;
 
     if (page_is_thread(context)) {
-        FLB_LOG_INFO_LB("Processing thread %zu (URL '%s')", id, thread_url);
+        FLB_LOG_INFO_LB("Processing thread %" PRIuPTR " (URL '%s')", id, thread_url);
 
         include_comments(curl_handle, context);
         download_thread_page_setup(curl_handle, NULL, NULL, 1);
 
         fix_timestamps(context);
-        FLB_LOG_INFO("Fixed timestamps in thread %zu", id);
+        FLB_LOG_INFO("Fixed timestamps in thread %" PRIuPTR, id);
 
         resources_list = parse_resources(resources_list, context, "//link", "href");
         resources_list = parse_resources(resources_list, context, "//script", "src");
@@ -300,7 +297,7 @@ static int download_thread_page(CURL* curl_handle, size_t id) {
 
         if (resources_list) {
             flb_list_foreach3(resources_list, save_resource, curl_handle);
-            FLB_LOG_INFO("Saved resources for thread %d", id);
+            FLB_LOG_INFO("Saved resources for thread %" PRIuPTR, id);
         }
 
         save_thread(id, uint_max_digits, doc);
@@ -310,16 +307,26 @@ static int download_thread_page(CURL* curl_handle, size_t id) {
     return 0;
 }
 
+static int get_cpu_count(void) {
+#ifdef WIN32
+    SYSTEM_INFO sysinfo;
+    GetSystemInfo(&sysinfo);
+    return sysinfo.dwNumberOfProcessors;
+#else
+    return sysconf(_SC_NPROCESSORS_ONLN);
+#endif
+}
+
 typedef struct {
     size_t start;
     size_t end;
     useconds_t interval;
 } WorkerOpts;
 
-void* flb_download_worker(void* arg) {
+static void* flb_download_worker(void* arg) {
     WorkerOpts* opts = (WorkerOpts*) arg;
-    FLB_LOG_INFO("Processing threads range [%zu; %zu] (interval %ld)", opts->start, opts->end,
-                 opts->interval);
+    FLB_LOG_INFO("Processing threads range [%" PRIuPTR "; %" PRIuPTR "] (interval %ld)", opts->start,
+                 opts->end, opts->interval);
 
     CURL* curl_handle = curl_easy_init();
     if (curl_handle) {
@@ -328,7 +335,7 @@ void* flb_download_worker(void* arg) {
 
         for (size_t tid = opts->start; tid <= opts->end; ++tid) {
             if (download_thread_page(curl_handle, tid) != 0) {
-                FLB_LOG_ERROR("Can't download thread %zu, exiting...", tid);
+                FLB_LOG_ERROR("Can't download thread %" PRIuPTR ", exiting...", tid);
                 break;
             }
 
@@ -340,19 +347,22 @@ void* flb_download_worker(void* arg) {
 
     curl_easy_cleanup(curl_handle);
     pthread_exit(NULL);
+    return NULL;
 }
 
 int flb_download_threads(size_t start, size_t end, useconds_t interval) {
     curl_global_init(CURL_GLOBAL_ALL);
 
-    const int workers_count = get_nprocs();
+    const size_t flb_threads_count = end - start + 1;
+    const int workers_count = flb_threads_count < (size_t) get_cpu_count() ? 1 : get_cpu_count();
+    const size_t flb_threads_per_worker =
+        workers_count == 1 ? flb_threads_count : flb_threads_count / workers_count;
+
+    FLB_LOG_INFO("Workers: %d; FLB threads: %" PRIuPTR "; Threads per worker (avg): %" PRIuPTR,
+                 workers_count, flb_threads_count, flb_threads_per_worker);
+
     pthread_t workers_ids[workers_count];
     WorkerOpts* workers_opts[workers_count];
-
-    const size_t flb_threads_count = end - start + 1;
-    const size_t flb_threads_per_worker = flb_threads_count / workers_count;
-    FLB_LOG_INFO("CPUs: %d; FLB threads: %zu; TPW: %zu (avg)", workers_count, flb_threads_count,
-                 flb_threads_per_worker);
 
     for (int w = 0; w < workers_count; ++w) {
         WorkerOpts* opts = malloc(sizeof(WorkerOpts));

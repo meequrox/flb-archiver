@@ -1,3 +1,4 @@
+#include <inttypes.h>
 #include <locale.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -44,7 +45,7 @@ int main(int argc, char** argv) {
 
     const size_t interval_ms = 150;
     const size_t ms_to_us_multiplier = 1000;
-    FLB_LOG_INFO("Using interval %zu ms", interval_ms);
+    FLB_LOG_INFO("Using interval %" PRIuPTR " ms", interval_ms);
 
     extern const char kBaseUrl[];
     extern const char kFirefoxUserAgent[];

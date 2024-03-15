@@ -1,5 +1,6 @@
 #include "logger/logger.h"
 
+#include <inttypes.h>
 #include <pthread.h>
 #include <stdarg.h>
 #include <stddef.h>
@@ -28,11 +29,11 @@ void flb_logger(const char* prompt, const char* function, const char* format, ..
         vsnprintf(buffer, buffer_size, format, args);
         va_end(args);
 
-        printf("%s %s[W%zu] %s%s()%s: %s\n", prompt, LOGCLR_YELLOW, pthread_self(), LOGCLR_GREEN,
-               function, LOGCLR_NORMAL, buffer);
+        printf("%s %s[W%" PRIuPTR "] %s%s()%s: %s\n", prompt, LOGCLR_YELLOW, pthread_self(),
+               LOGCLR_GREEN, function, LOGCLR_NORMAL, buffer);
         return;
     }
 
-    printf("%s %s[W%zu] %s%s()%s: Unknown log message\n", prompt, LOGCLR_YELLOW, pthread_self(),
+    printf("%s %s[W%" PRIuPTR "] %s%s()%s: Unknown log message\n", prompt, LOGCLR_YELLOW, pthread_self(),
            LOGCLR_GREEN, function, LOGCLR_NORMAL);
 }
