@@ -8,6 +8,13 @@ add_library(${target_name} STATIC
   logger.c
 )
 
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+
+target_link_libraries(${target_name} PUBLIC
+  Threads::Threads
+)
+
 target_include_directories(${target_name} PUBLIC
   ${PROJECT_SOURCE_DIR}/include
 )
